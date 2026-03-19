@@ -70,5 +70,5 @@ That means the app repo and the tap repo move in lockstep, but they are still se
 
 ## Prompt Dependency Strategy
 
-The first cut of Machinate keeps `questionary` optional so the Homebrew formula can stay simple.
-If `questionary` is installed, Machinate uses it automatically. If not, it falls back to plain terminal prompts.
+Machinate now includes `questionary` in the default package install, so the brewed CLI gets the richer prompt UI automatically.
+If prompt dependencies are unavailable in some runtime, Machinate still falls back to plain terminal prompts.

@@ -6,8 +6,14 @@ The intended UX is:
 
 ```bash
 macht workspace init
+macht guide beginner
 macht new pipeline
 macht grab data
+macht collate pipeline --report outputs/reports/legate/report.json
+macht model validate
+macht model edit --set 'hidden_dims=[256,64]' --output model.v2.toml
+macht model diff --new model.v2.toml
+macht model compile
 macht task list
 macht run train --experiment baseline
 macht doctor
@@ -15,20 +21,29 @@ macht doctor
 
 This repo is the source of truth for the installed `macht` command. Homebrew is only the delivery layer.
 
+If you want the operator walkthrough rather than the reference overview, start with [docs/beginner-guide.md](docs/beginner-guide.md).
+
 ## Status
 
 The first scaffold in this repo supports:
 
 - `macht workspace init`
+- `macht guide beginner`
 - `macht workspace show`
 - `macht new pipeline`
 - `macht grab data`
+- `macht collate pipeline`
 - `macht legate report --data`
+- `macht model validate`
+- `macht model edit`
+- `macht model diff`
+- `macht model migrate`
+- `macht model compile`
 - `macht task list`
 - `macht run <task>`
 - `macht doctor`
 
-The generated pipeline repo is intentionally lightweight, but it is now native to Machinate. It gives you a `machinate.toml` pipeline config, TOML experiment config, a starter Python task module, and a workspace registration manifest. It does not generate or rely on a `Makefile`.
+The generated pipeline repo is intentionally lightweight, but it is now native to Machinate. It gives you a `machinate.toml` pipeline config, TOML experiment config, a starter Python task module, and a workspace registration manifest. It does not generate or rely on a `Makefile`. The new model system starts moving more pipeline definition into spec files such as `dataset_facts.toml`, `model.toml`, and `training.toml`.
 
 ## Install For Development
 
@@ -46,6 +61,14 @@ Create a workspace:
 
 ```bash
 macht workspace init
+```
+
+Read the built-in operator guide at any time:
+
+```bash
+macht guide list
+macht guide beginner
+macht guide workflow
 ```
 
 Create a placeholder pipeline repo inside that workspace:
@@ -84,6 +107,34 @@ The `legate` flow is intentionally native to Machinate:
 - it stores prompt, raw response, and final JSON artifact under `outputs/reports/legate/`
 - it prints the agent's plain-English summary back to the terminal after completion
 
+Collate a spec-first model pipeline from a delegated data report:
+
+```bash
+cd pipelines/demo-pipeline
+macht collate pipeline --report /path/to/outputs/reports/legate/report.json
+macht model validate
+macht model edit --set 'hidden_dims=[256,64]' --output model.v2.toml
+macht model diff --new model.v2.toml
+macht model compile
+```
+
+`macht collate pipeline` now prompts for missing intent in interactive mode, selects a recipe, writes `dataset_facts.toml`, `model.toml`, and `training.toml`, and appends the selected recipe metadata back into `machinate.toml`.
+
+The current compiler paths support:
+
+- `tabular_mlp`
+- `binary_classification`
+- `tabular` modality
+- `transformer_encoder`
+- `binary_classification`
+- `text` modality
+
+The compiler writes deterministic build artifacts under `outputs/compiled_model/`, including a generated Python module and a `param_store_manifest.json`.
+
+`macht run train` now consumes `model.toml` and `training.toml` directly when those specs are present. The generated starter task compiles the model, writes the compiled artifact paths into the run summary, and emits an initialized checkpoint when `torch` is available in the active runtime.
+
+`macht model diff` and `macht model migrate` are the first editability layer for the IR. Diff produces a migration plan, and migrate can preserve compatible weights from an existing checkpoint when `torch` is installed.
+
 Check install and workspace health:
 
 ```bash
@@ -102,6 +153,13 @@ Machinate separates three layers:
    Repo-local environments created per pipeline, not shared globally.
 
 Pipelines are configured by `machinate.toml` and executed through `macht`, not through generated Make targets.
+
+The long-term architecture now has two layers:
+
+- pipeline repos stay thin and mostly hold specs/configs
+- `Machinate` owns the typed IR, validators, compilers, and migration logic
+
+The first IR foundation is a Rust crate at `rust/machinate-ir/`. It now validates specs and computes diff/migration plans, while the initial compiler path remains in Python so the feature is usable immediately.
 
 The current workspace scaffold creates:
 
@@ -167,8 +225,10 @@ scripts/
 src/machinate/
   cli.py
   core.py
+  modeling.py
   ui.py
   commands/
+rust/machinate-ir/
 docs/
 packaging/homebrew/
 tests/

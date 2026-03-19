@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 
 from machinate import __version__
-from machinate.commands import doctor, grab, legate, new, run, task, workspace
+from machinate.commands import collate, doctor, grab, guide, legate, model, new, run, task, workspace
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -15,10 +15,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
     doctor.register(subparsers)
+    guide.register(subparsers)
     workspace.register(subparsers)
     new.register(subparsers)
     grab.register(subparsers)
+    collate.register(subparsers)
     legate.register(subparsers)
+    model.register(subparsers)
     task.register(subparsers)
     run.register(subparsers)
     return parser

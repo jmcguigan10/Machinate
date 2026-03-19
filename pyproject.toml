@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "machinate"
-version = "0.2.0"
+version = "0.3.0"
 description = "Prompt-first control-plane CLI for ML workspaces and pipelines"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -35,7 +35,7 @@ macht = "machinate.cli:main"
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-machinate = ["js/*.mjs"]
+machinate = ["js/*.mjs", "guides/*.md"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
