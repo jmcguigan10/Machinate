@@ -7,6 +7,7 @@ from machinate.core import (
     clean_optional,
     derive_name,
     fingerprint_path,
+    is_url,
     materialize_source,
     now_utc,
     require_workspace_root,
@@ -52,11 +53,16 @@ def cmd_grab_data(args: argparse.Namespace) -> int:
     asset_name = slugify(asset_name or derive_name(src, "dataset"), fallback="dataset")
 
     mode = clean_optional(args.mode)
-    if mode is None:
-        if can_prompt_interactively():
-            mode = prompt_select("Materialization mode", GRAB_MODES, default="copy")
-        else:
-            mode = "copy"
+    if is_url(src):
+        if mode is not None and mode != "download":
+            raise SystemExit("URL sources only support MODE=download")
+        mode = "download"
+    else:
+        if mode is None:
+            if can_prompt_interactively():
+                mode = prompt_select("Materialization mode", GRAB_MODES, default="copy")
+            else:
+                mode = "copy"
 
     destination_root = paths.data_staging_root / asset_name
     stored_path, stored_mode = materialize_source(src, destination_root, mode)
@@ -81,4 +87,3 @@ def cmd_grab_data(args: argparse.Namespace) -> int:
     print(f"stored path: {stored_path}")
     print(f"manifest: {manifest_path}")
     return 0
-

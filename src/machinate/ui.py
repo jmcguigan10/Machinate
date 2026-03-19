@@ -4,12 +4,19 @@ from dataclasses import dataclass
 import sys
 from typing import Any
 
+CANCEL_SENTINEL = "__cancel__"
+BACK_SENTINEL = "__back__"
+
 
 @dataclass(frozen=True)
 class MenuChoice:
     label: str
     value: str
     styled_title: Any | None = None
+
+
+class OperationCancelled(Exception):
+    pass
 
 
 def load_questionary() -> tuple[Any | None, Any | None]:
@@ -26,6 +33,16 @@ QUESTIONARY, STYLE_CLASS = load_questionary()
 QUESTIONARY_STYLE = (
     STYLE_CLASS.from_dict(
         {
+            "managed-venv": "fg:#d70000 bold",
+            "library-detail": "fg:#6b7280",
+            "library-existing": "fg:#005faf bold",
+            "library-add": "fg:#2e8b57 bold",
+            "library-edit": "fg:#b58900 bold",
+            "library-remove": "fg:#d70000 bold",
+            "library-missing": "fg:#ffffff",
+            "finish": "fg:#005f87 bold",
+            "custom-input": "fg:#875f00 bold",
+            "warning": "fg:#d70000 bold",
             "answer": "fg:#005f87 bold",
             "selected": "fg:#2e8b57 bold",
             "question": "bold",
@@ -69,11 +86,41 @@ def prompt_text(message: str, default: str | None = None) -> str:
     return fallback_prompt_text(message, default=default)
 
 
+def prompt_optional_text(message: str, default: str = "") -> str:
+    if use_questionary():
+        response = QUESTIONARY.text(message, default=default, style=QUESTIONARY_STYLE).ask()
+        if response is None:
+            raise ValueError("Input cancelled.")
+        return response.strip()
+
+    prompt = message
+    if default:
+        prompt += f" [{default}]"
+    prompt += ": "
+    return input(prompt).strip()
+
+
+def prompt_multiline(message: str) -> str:
+    print(message)
+    print("Finish with a blank line.")
+    lines: list[str] = []
+    while True:
+        try:
+            line = input()
+        except EOFError:
+            break
+        if not line:
+            break
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
 def prompt_select(
     message: str,
     choices: list[MenuChoice],
     default: str | None = None,
     *,
+    use_shortcuts: bool = True,
     use_search_filter: bool = False,
 ) -> str:
     if not choices:
@@ -88,6 +135,7 @@ def prompt_select(
             message,
             choices=questionary_choices,
             default=default,
+            use_shortcuts=use_shortcuts,
             use_search_filter=use_search_filter,
             use_jk_keys=not use_search_filter,
             style=QUESTIONARY_STYLE,
@@ -111,6 +159,40 @@ def prompt_select(
     return raw
 
 
+def prompt_multiselect(message: str, choices: list[str]) -> list[str]:
+    if not choices:
+        raise ValueError("A non-empty choice list is required.")
+
+    if use_questionary():
+        response = QUESTIONARY.checkbox(message, choices=choices, style=QUESTIONARY_STYLE).ask()
+        if response is None or not response:
+            raise ValueError("At least one selection is required.")
+        return [str(item) for item in response]
+
+    print(message)
+    for index, choice in enumerate(choices, start=1):
+        print(f"  {index}. {choice}")
+    response = input("Select one or more by comma-separated numbers or names: ").strip()
+    if not response:
+        raise ValueError("At least one selection is required.")
+    selected: list[str] = []
+    for chunk in response.split(","):
+        item = chunk.strip()
+        if not item:
+            continue
+        if item.isdigit():
+            selected.append(choices[int(item) - 1])
+        elif item in choices:
+            selected.append(item)
+        else:
+            raise ValueError(f"Unknown selection `{item}`.")
+    deduped: list[str] = []
+    for item in selected:
+        if item not in deduped:
+            deduped.append(item)
+    return deduped
+
+
 def prompt_confirm(message: str, default: bool = False) -> bool:
     if use_questionary():
         response = QUESTIONARY.confirm(message, default=default, style=QUESTIONARY_STYLE).ask()
@@ -123,4 +205,3 @@ def prompt_confirm(message: str, default: bool = False) -> bool:
     if not response:
         return default
     return response in {"y", "yes", "true", "1"}
-

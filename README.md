@@ -8,6 +8,8 @@ The intended UX is:
 macht workspace init
 macht new pipeline
 macht grab data
+macht task list
+macht run train --experiment baseline
 macht doctor
 ```
 
@@ -21,9 +23,12 @@ The first scaffold in this repo supports:
 - `macht workspace show`
 - `macht new pipeline`
 - `macht grab data`
+- `macht legate report --data`
+- `macht task list`
+- `macht run <task>`
 - `macht doctor`
 
-The generated pipeline repo is intentionally skeletal. It gives you a placeholder repo with a `Makefile`, baseline config, package directory, and registration manifest, but it does not ship real training code yet.
+The generated pipeline repo is intentionally lightweight, but it is now native to Machinate. It gives you a `machinate.toml` pipeline config, TOML experiment config, a starter Python task module, and a workspace registration manifest. It does not generate or rely on a `Makefile`.
 
 ## Install For Development
 
@@ -33,11 +38,7 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-If you want richer interactive prompts, install the optional prompt extra:
-
-```bash
-pip install -e ".[prompts]"
-```
+The default install now includes `questionary`, so interactive commands use the richer prompt UI automatically when running in a real TTY.
 
 ## Quick Start
 
@@ -57,7 +58,31 @@ Stage a dataset into the workspace:
 
 ```bash
 macht grab data
+macht grab data --src https://example.com/data.csv --name remote-dataset
 ```
+
+Inspect native tasks and run one:
+
+```bash
+cd pipelines/demo-pipeline
+macht task list
+macht run validate --experiment baseline
+macht run train --experiment baseline
+```
+
+Delegate a structured data report to Codex CLI:
+
+```bash
+macht legate report --data --dataset demo-dataset
+macht legate report --data --dataset demo-dataset --notes "This came from a churn export and may contain leakage."
+```
+
+The `legate` flow is intentionally native to Machinate:
+
+- it resolves the dataset from the workspace asset registry or a direct path
+- it runs `codex exec` non-interactively with a JSON schema contract
+- it stores prompt, raw response, and final JSON artifact under `outputs/reports/legate/`
+- it prints the agent's plain-English summary back to the terminal after completion
 
 Check install and workspace health:
 
@@ -75,6 +100,8 @@ Machinate separates three layers:
    A `.machinate/` directory inside each managed workspace.
 3. Pipeline runtime environments
    Repo-local environments created per pipeline, not shared globally.
+
+Pipelines are configured by `machinate.toml` and executed through `macht`, not through generated Make targets.
 
 The current workspace scaffold creates:
 
@@ -100,6 +127,7 @@ brew install machinate
 ```
 
 See [docs/homebrew-release.md](docs/homebrew-release.md) and [packaging/homebrew/machinate.rb](packaging/homebrew/machinate.rb) for the initial formula template and release process.
+The Homebrew install tracks the latest tagged release, not unreleased changes on `main`.
 
 ## Local Homebrew Smoke Test
 

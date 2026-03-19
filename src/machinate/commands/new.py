@@ -6,13 +6,12 @@ from pathlib import Path
 from machinate.core import (
     clean_optional,
     now_utc,
-    parse_supported_targets,
     require_workspace_root,
     slugify,
     workspace_paths,
     write_json,
 )
-from machinate.ui import MenuChoice, can_prompt_interactively, prompt_select, prompt_text
+from machinate.ui import MenuChoice, can_prompt_interactively, prompt_multiselect, prompt_select, prompt_text
 
 
 PIPELINE_TYPES = [
@@ -23,9 +22,17 @@ PIPELINE_TYPES = [
 ]
 
 PIPELINE_TEMPLATES = [
+    MenuChoice("native-python", "native-python"),
     MenuChoice("minimal", "minimal"),
-    MenuChoice("makefile", "makefile"),
 ]
+
+STARTER_TASKS = ["validate", "audit", "train", "smoke"]
+TASK_DESCRIPTIONS = {
+    "validate": "Validate the experiment configuration",
+    "audit": "Audit the dataset and write a JSON summary",
+    "train": "Run a demo training task",
+    "smoke": "Run validate, audit, and train in sequence",
+}
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -38,38 +45,49 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     new_pipeline.add_argument("--type")
     new_pipeline.add_argument("--template")
     new_pipeline.add_argument("--path")
+    new_pipeline.add_argument("--task", action="append", default=[])
     new_pipeline.set_defaults(func=cmd_new_pipeline)
 
 
-def pipeline_makefile() -> str:
-    return """SHELL := /bin/bash
-
-PYTHON ?= python3
-EXPERIMENT ?= baseline
-
-.DEFAULT_GOAL := help
-
-.PHONY: help config.validate data.audit dev.smoke run.train
-
-help:
-\t@echo "Local pipeline targets"
-\t@echo "  make config.validate EXPERIMENT=$(EXPERIMENT)"
-\t@echo "  make data.audit EXPERIMENT=$(EXPERIMENT)"
-\t@echo "  make dev.smoke EXPERIMENT=$(EXPERIMENT)"
-\t@echo "  make run.train EXPERIMENT=$(EXPERIMENT)"
-
-config.validate:
-\t@echo "config.validate is not implemented yet for $(EXPERIMENT)"
-
-data.audit:
-\t@echo "data.audit is not implemented yet for $(EXPERIMENT)"
-
-dev.smoke:
-\t@echo "dev.smoke is not implemented yet for $(EXPERIMENT)"
-
-run.train:
-\t@echo "run.train is not implemented yet for $(EXPERIMENT)"
-"""
+def pipeline_config_toml(
+    *,
+    pipeline_name: str,
+    pipeline_slug: str,
+    pipeline_type: str,
+    template: str,
+    package_slug: str,
+    tasks: list[str],
+) -> str:
+    lines = [
+        "[pipeline]",
+        f'name = "{pipeline_name}"',
+        f'slug = "{pipeline_slug}"',
+        f'type = "{pipeline_type}"',
+        f'template = "{template}"',
+        f'package = "{package_slug}"',
+        "",
+        "[paths]",
+        'source_root = "src"',
+        'experiments = "configs/experiments"',
+        'outputs = "outputs"',
+        "",
+        "[dataset]",
+        'kind = "csv"',
+        'target_column = "target"',
+        "",
+    ]
+    for task_name in tasks:
+        lines.extend(
+            [
+                f"[tasks.{task_name}]",
+                f'entry = "{package_slug}.tasks:{task_name}"',
+                f'description = "{TASK_DESCRIPTIONS[task_name]}"',
+                f"requires_dataset = {'true' if task_name in {'audit', 'smoke'} else 'false'}",
+                f"requires_experiment = {'true' if task_name in {'validate', 'audit', 'train', 'smoke'} else 'false'}",
+                "",
+            ]
+        )
+    return "\n".join(lines).strip() + "\n"
 
 
 def pipeline_readme(name: str, pipeline_type: str, template: str) -> str:
@@ -81,29 +99,158 @@ This placeholder pipeline was created by `macht new pipeline`.
 
 - pipeline_type: {pipeline_type}
 - template: {template}
+- pipeline_config: `machinate.toml`
+
+## Native Usage
+
+```bash
+macht task list
+macht run validate --experiment baseline
+macht run train --experiment baseline
+```
 
 ## Next Steps
 
-1. Replace the stub Makefile targets with real project logic.
+1. Replace the starter task functions in `src/<package>/tasks.py` with real project logic.
 2. Add runtime dependencies to `requirements.txt` or your preferred env manager.
-3. Define your dataset contract and experiment configs.
-4. Decide whether the repo will stay Makefile-driven or move to a native CLI.
+3. Extend `machinate.toml` with more tasks and richer metadata.
+4. Define your real dataset contract and experiment configs.
 """
 
 
 def baseline_config(name: str, pipeline_type: str) -> str:
-    return """{
-  "pipeline_name": "%s",
-  "pipeline_type": "%s",
-  "dataset_contract": {
-    "kind": "csv",
-    "target_column": "target"
-  },
-  "training": {
-    "epochs": 1
-  }
-}
+    return """[pipeline]
+name = "%s"
+type = "%s"
+
+[dataset]
+kind = "csv"
+target_column = "target"
+
+[training]
+epochs = 1
+learning_rate = 0.01
 """ % (name, pipeline_type)
+
+
+def starter_tasks_module() -> str:
+    return '''from __future__ import annotations
+
+import csv
+from collections import Counter
+
+
+def _resolve_csv(path):
+    if path.is_file():
+        if path.suffix.lower() != ".csv":
+            raise ValueError(f"Expected a CSV file, got {path}")
+        return path
+
+    candidates = sorted(candidate for candidate in path.rglob("*.csv") if candidate.is_file())
+    if not candidates:
+        raise ValueError(f"No CSV files were found under {path}")
+    if len(candidates) > 1:
+        raise ValueError(f"Expected exactly one CSV file under {path}, found {len(candidates)}")
+    return candidates[0]
+
+
+def _load_rows(csv_path):
+    with csv_path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        return reader.fieldnames or [], rows
+
+
+def validate(context):
+    config = context.require_experiment_config()
+    missing = [section for section in ("dataset", "training") if section not in config]
+    if missing:
+        raise ValueError(f"Missing required config sections: {', '.join(missing)}")
+
+    training = config.get("training", {})
+    epochs = int(training.get("epochs", 0))
+    if epochs <= 0:
+        raise ValueError("training.epochs must be positive")
+
+    print(f"validated experiment `{context.experiment_name or 'default'}`")
+    return 0
+
+
+def audit(context):
+    dataset_path = context.require_dataset_path()
+    csv_path = _resolve_csv(dataset_path)
+    columns, rows = _load_rows(csv_path)
+    config = context.require_experiment_config()
+    target_column = str(config.get("dataset", {}).get("target_column", "target"))
+    target_support = {}
+    if target_column in columns:
+        target_support = dict(sorted(Counter(str(row.get(target_column, "")) for row in rows).items()))
+
+    artifact_path = context.write_json_artifact(
+        "audits",
+        f"{context.experiment_name or 'default'}_audit",
+        {
+            "task": "audit",
+            "pipeline_root": str(context.pipeline_root),
+            "dataset_path": str(dataset_path),
+            "csv_path": str(csv_path),
+            "row_count": len(rows),
+            "column_count": len(columns),
+            "columns": columns,
+            "target_column": target_column,
+            "target_support": target_support,
+        },
+    )
+    print(f"audit written: {artifact_path}")
+    return 0
+
+
+def train(context):
+    config = context.require_experiment_config()
+    training = config.get("training", {})
+    artifact_path = context.write_json_artifact(
+        "runs",
+        f"{context.experiment_name or 'default'}_train",
+        {
+            "task": "train",
+            "pipeline_root": str(context.pipeline_root),
+            "experiment_name": context.experiment_name or "",
+            "experiment_config_path": str(context.experiment_config_path) if context.experiment_config_path else "",
+            "dataset_path": str(context.dataset_path) if context.dataset_path else "",
+            "epochs": int(training.get("epochs", 0)),
+            "learning_rate": float(training.get("learning_rate", 0.0)),
+        },
+    )
+    print(f"run summary written: {artifact_path}")
+    return 0
+
+
+def smoke(context):
+    validate(context)
+    if context.dataset_path is not None:
+        audit(context)
+    train(context)
+    print("smoke task completed")
+    return 0
+'''
+
+
+def selected_tasks(raw_tasks: list[str]) -> list[str]:
+    if raw_tasks:
+        deduped: list[str] = []
+        for task_name in raw_tasks:
+            if task_name not in STARTER_TASKS:
+                raise SystemExit(f"unsupported starter task `{task_name}`")
+            if task_name not in deduped:
+                deduped.append(task_name)
+        return deduped
+
+    if can_prompt_interactively():
+        chosen = prompt_multiselect("Select starter pipeline tasks", STARTER_TASKS)
+        deduped = [task_name for task_name in STARTER_TASKS if task_name in chosen]
+        if deduped:
+            return deduped
+    return list(STARTER_TASKS)
 
 
 def cmd_new_pipeline(args: argparse.Namespace) -> int:
@@ -131,7 +278,7 @@ def cmd_new_pipeline(args: argparse.Namespace) -> int:
         if can_prompt_interactively():
             template = prompt_select("Pipeline template", PIPELINE_TEMPLATES, default="minimal")
         else:
-            template = "minimal"
+            template = "native-python"
 
     default_repo_path = paths.pipeline_root / pipeline_slug
     repo_path_text = clean_optional(args.path)
@@ -142,25 +289,36 @@ def cmd_new_pipeline(args: argparse.Namespace) -> int:
     if repo_path.exists() and any(repo_path.iterdir()):
         raise SystemExit(f"pipeline path already exists and is not empty: {repo_path}")
 
+    tasks = selected_tasks(args.task)
     package_slug = pipeline_slug.replace("-", "_").replace(".", "_")
-    makefile_path = repo_path / "Makefile"
+    config_path = repo_path / "machinate.toml"
     manifest_path = paths.pipeline_registry_root / f"{pipeline_slug}.json"
     if manifest_path.exists():
         raise SystemExit(f"pipeline registry entry already exists: {manifest_path}")
 
     (repo_path / "configs" / "experiments").mkdir(parents=True, exist_ok=True)
     (repo_path / "src" / package_slug).mkdir(parents=True, exist_ok=True)
+    (repo_path / "outputs").mkdir(parents=True, exist_ok=True)
 
-    makefile_path.write_text(pipeline_makefile())
+    config_path.write_text(
+        pipeline_config_toml(
+            pipeline_name=pipeline_name,
+            pipeline_slug=pipeline_slug,
+            pipeline_type=pipeline_type,
+            template=template,
+            package_slug=package_slug,
+            tasks=tasks,
+        )
+    )
     (repo_path / "README.md").write_text(pipeline_readme(pipeline_name, pipeline_type, template))
     (repo_path / ".gitignore").write_text("__pycache__/\n*.py[cod]\n.venv/\noutputs/\n")
     (repo_path / "requirements.txt").write_text("# Add runtime dependencies here.\n")
     (repo_path / "src" / package_slug / "__init__.py").write_text(f'"""Pipeline package for {pipeline_name}."""\n')
-    (repo_path / "configs" / "experiments" / "baseline.json").write_text(
+    (repo_path / "src" / package_slug / "tasks.py").write_text(starter_tasks_module())
+    (repo_path / "configs" / "experiments" / "baseline.toml").write_text(
         baseline_config(pipeline_name, pipeline_type)
     )
 
-    supported_commands = parse_supported_targets(makefile_path)
     write_json(
         manifest_path,
         {
@@ -170,7 +328,8 @@ def cmd_new_pipeline(args: argparse.Namespace) -> int:
             "pipeline_type": pipeline_type,
             "template": template,
             "created_at": now_utc(),
-            "supported_commands": supported_commands,
+            "pipeline_config_path": str(config_path),
+            "supported_tasks": tasks,
         },
     )
 

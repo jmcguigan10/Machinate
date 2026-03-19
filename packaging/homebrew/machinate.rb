@@ -3,8 +3,8 @@ class Machinate < Formula
 
   desc "Prompt-first control-plane CLI for ML workspaces and pipelines"
   homepage "https://github.com/jmcguigan10/Machinate"
-  url "https://github.com/jmcguigan10/Machinate/releases/download/v0.1.0/machinate-0.1.0.tar.gz"
-  sha256 "2edbef22fd2f22db816d5f28d2a6f16e7c32fea208a9591e2931ca07cdd93e38"
+  url "https://github.com/jmcguigan10/Machinate/releases/download/v0.2.0/machinate-0.2.0.tar.gz"
+  sha256 "82ab9350ed1a53b6bd5ff3c4d4209b469401c867183484702651609fa769e38b"
   license "MIT"
 
   depends_on "python@3.12"

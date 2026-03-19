@@ -30,6 +30,18 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     else:
         notes.append("homebrew: not found on PATH")
 
+    node_bin = shutil.which("node")
+    if node_bin:
+        notes.append(f"node: {node_bin}")
+    else:
+        notes.append("node: not found on PATH; URL dataset downloads will be unavailable")
+
+    codex_bin = shutil.which("codex")
+    if codex_bin:
+        notes.append(f"codex: {codex_bin}")
+    else:
+        notes.append("codex: not found on PATH; `macht legate` will be unavailable")
+
     config_path = app_paths().config_path
     if config_path.exists():
         notes.append(f"global config: {config_path}")
@@ -41,7 +53,6 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     else:
         notes.append("prompt backend: plain terminal input")
 
-    workspace_root = None
     workspace_root = find_workspace_root(Path(args.workspace).expanduser().resolve()) if args.workspace else find_workspace_root()
 
     if workspace_root is None:
