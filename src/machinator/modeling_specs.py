@@ -67,9 +67,13 @@ def _int_or_none(value: Any) -> int | None:
 
 def load_training_spec(path: Path) -> TrainingSpec:
     payload = _read_toml(path)
+    return parse_training_spec_payload(payload)
+
+
+def parse_training_spec_payload(payload: dict[str, Any]) -> TrainingSpec:
     training = payload.get("training")
     if not isinstance(training, dict):
-        raise ModelSpecError(f"training spec is missing a valid [training] section: {path}")
+        raise ModelSpecError("training spec is missing a valid [training] section")
     return TrainingSpec(
         epochs=int(training.get("epochs", 0)),
         batch_size=int(training.get("batch_size", 0)),
@@ -95,6 +99,10 @@ def validate_training_spec(spec: TrainingSpec) -> None:
 
 def load_architecture_spec(path: Path) -> ArchitectureSpec:
     payload = _read_toml(path)
+    return parse_architecture_spec_payload(payload, fallback_name=path.stem)
+
+
+def parse_architecture_spec_payload(payload: dict[str, Any], *, fallback_name: str = "compiled-model") -> ArchitectureSpec:
     model = _require_section(payload, "model")
     input_section = _require_section(payload, "input")
     target = _require_section(payload, "target")
@@ -112,7 +120,7 @@ def load_architecture_spec(path: Path) -> ArchitectureSpec:
     conv_channels = [int(value) for value in backbone.get("channels", [])]
 
     spec = ArchitectureSpec(
-        name=str(model.get("name", path.stem)).strip() or path.stem,
+        name=str(model.get("name", fallback_name)).strip() or fallback_name,
         family=str(model.get("family", "")).strip(),
         task=str(model.get("task", "")).strip(),
         modality=str(model.get("modality", "")).strip(),

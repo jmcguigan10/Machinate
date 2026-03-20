@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 
 from machinator import __version__
-from machinator.commands import check, collate, doctor, grab, guide, legate, model, new, run, task, test, workspace
+from machinator.commands import build, check, collate, doctor, grab, guide, init, legate, model, new, run, task, test, workspace
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -19,6 +19,8 @@ def build_parser() -> argparse.ArgumentParser:
     guide.register(subparsers)
     test.register(subparsers)
     workspace.register(subparsers)
+    init.register(subparsers)
+    build.register(subparsers)
     new.register(subparsers)
     grab.register(subparsers)
     collate.register(subparsers)

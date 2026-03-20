@@ -15,7 +15,7 @@ Machinator is not a normal ML repo template generator. It is a control plane for
 - you create a workspace
 - inside that workspace, you create or manage pipeline repos
 - pipelines stay relatively thin
-- model and training structure increasingly live in specs such as `dataset_facts.toml`, `model.toml`, and `training.toml`
+- the default pipeline flow builds generated configs under `config/` from delegated data reports
 
 If that feels unusual, that is normal. The easiest way to use Machinator is to think in terms of a guided workflow rather than a library API.
 
@@ -28,7 +28,7 @@ Machinator has three layers:
 2. Workspace
    A directory that holds shared state, staged data, outputs, and registered pipelines.
 3. Pipeline repo
-   A specific project under `pipelines/` with its own `machinate.toml`, `config/`, `data/`, specs, and optional custom code.
+   A specific project under `pipelines/` with its own `machinate.toml`, `config-ref.toml`, `config/`, `data/`, and `outputs/`.
 
 The important point is that Machinator does not expect every pipeline repo to reinvent orchestration. The workspace and the CLI own that.
 
@@ -40,9 +40,9 @@ The normal beginner flow is:
 macht workspace init
 macht grab data
 macht legate report --data
-macht collate pipeline --create
-macht model validate
-macht run train --experiment baseline
+macht init pipeline
+macht build configs
+macht run train
 ```
 
 That sequence means:
@@ -50,8 +50,8 @@ That sequence means:
 1. create a workspace
 2. stage a dataset
 3. ask an agent to inspect the dataset
-4. create the pipeline from the report
-5. validate the model spec
+4. create the pipeline references from the report
+5. build generated configs
 6. run the pipeline
 
 ## Your First Session
@@ -102,26 +102,22 @@ macht legate report --data --dataset customer-churn --notes-prompt
 
 The result is a report artifact under `outputs/reports/legate/`.
 
-### 4. Create the pipeline from the report
+### 4. Initialize the pipeline from the report
 
 This is the preferred path:
 
 ```bash
-macht collate pipeline --create
+macht init pipeline --name customer-churn-pipeline
 ```
 
 Machinator will:
 
-- read the delegated report
-- infer dataset facts
-- infer the starter task intent when it can
-- choose the default starter recipe for the reported modality
-- create the pipeline scaffold
-- write:
-  - `dataset_facts.toml`
-  - `model.toml`
-  - `training.toml`
-- append collation metadata into `machinate.toml`
+- pick the delegated report
+- create a thin pipeline directory
+- write `machinate.toml`
+- write `config-ref.toml`
+- place the chosen dataset under `data/`
+- place the chosen delegated report under `data/reports/`
 
 After that, move into the created repo if you want:
 
@@ -129,21 +125,21 @@ After that, move into the created repo if you want:
 cd pipelines/my-pipeline
 ```
 
-### 5. Validate the model
+### 5. Build generated configs
 
 ```bash
-macht model validate
+macht build configs
 ```
 
-This checks that the generated `model.toml` is internally valid. If Rust validation is available, Machinator uses that backend automatically.
+This turns the chosen JSON report into generated config files under `config/`, including the dataset, model, and training config set.
 
 ### 6. Train
 
 ```bash
-macht run train --experiment baseline --dataset customer-churn
+macht run train
 ```
 
-If `model.toml` and `training.toml` exist, the generated starter task uses them directly. It compiles the model and writes run artifacts under `outputs/`.
+The pipeline runtime is package-managed by Machinator. The pipeline directory is just holding references, generated configs, and artifacts.
 
 ## What The Important Files Mean
 
@@ -160,16 +156,16 @@ If `model.toml` and `training.toml` exist, the generated starter task uses them 
 
 - `machinate.toml`
   The main pipeline configuration and task declarations.
-- `config/*.toml`
-  Experiment settings such as baseline training values.
-- `dataset_facts.toml`
-  Normalized facts derived from the delegated data report.
-- `model.toml`
-  The editable architecture spec.
-- `training.toml`
-  The editable training spec.
-- `src/<pipeline_package>/tasks.py`
-  Pipeline task entrypoints. Keep this small unless you truly need custom logic.
+- `config-ref.toml`
+  The report-driven reference file that points at the selected dataset, report, and generated configs.
+- `config/dataset.yaml`
+  Generated dataset facts for the active pipeline.
+- `config/model.yaml`
+  Generated model configuration derived from the delegated report and chosen recipe.
+- `config/training.yaml`
+  Generated training configuration used by the built-in runtime tasks.
+- `data/reports/*.json`
+  The delegated report artifact chosen for this pipeline.
 
 ## Interactive Vs Scripted Use
 
@@ -178,17 +174,15 @@ Machinator supports both modes.
 Interactive mode is best when you are exploring:
 
 - `macht grab data`
-- `macht collate pipeline`
+- `macht init pipeline`
+- `macht build configs`
 - `macht run`
 
 Scripted mode is best when you want to pin the exact values:
 
 ```bash
-macht collate pipeline \
-  --report /abs/path/to/report.json \
-  --name customer-churn-pipeline \
-  --intent-task binary_classification \
-  --recipe tabular.binary.basic
+macht init pipeline --report /abs/path/to/report.json --name customer-churn-pipeline
+macht build configs --pipeline customer-churn-pipeline
 ```
 
 Rule of thumb:
@@ -208,25 +202,23 @@ Treat that as the advanced/manual path, not the default beginner path.
 
 ## How To Think About Specs
 
-The two most important editable files are:
+The two most important default config files are:
 
-- `model.toml`
-- `training.toml`
+- `config/model.yaml`
+- `config/training.yaml`
 
 Machinator is moving toward a spec-first workflow. That means:
 
 - you do not always write raw model code first
-- you edit the architecture and training intent through specs
+- you derive an initial model and training setup from the data report
 - Machinator validates, diffs, compiles, and later migrates those specs
 
-For example, after collation you can change the hidden sizes:
+For example, after config generation you can inspect or revise the model setup:
 
 ```bash
-macht model edit --set 'hidden_dims=[256,64]' --output model.v2.toml
-macht model diff --new model.v2.toml
+cat config/model.yaml
+cat config/training.yaml
 ```
-
-That gives you a new spec plus a migration plan.
 
 ## The Commands You Will Use Most
 

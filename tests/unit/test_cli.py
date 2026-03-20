@@ -37,6 +37,20 @@ class CliSmokeTests(unittest.TestCase):
         self.assertEqual(args.command, "workspace")
         self.assertEqual(args.workspace_command, "init")
 
+    def test_init_pipeline_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["init", "pipeline", "--name", "demo-pipeline"])
+        self.assertEqual(args.command, "init")
+        self.assertEqual(args.init_command, "pipeline")
+        self.assertEqual(args.name, "demo-pipeline")
+
+    def test_build_configs_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["build", "configs", "--pipeline", "demo-pipeline"])
+        self.assertEqual(args.command, "build")
+        self.assertEqual(args.build_command, "configs")
+        self.assertEqual(args.pipeline, "demo-pipeline")
+
     def test_guide_parser(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["guide", "beginner"])
