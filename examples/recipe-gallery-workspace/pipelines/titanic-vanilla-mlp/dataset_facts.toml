@@ -1,0 +1,18 @@
+[dataset]
+name = "titanic"
+path = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/titanic/titanic.csv"
+modality = "tabular"
+suspected_problem_type = "binary classification"
+row_count_estimate = 891
+row_count_estimate_known = true
+
+[columns]
+names = ["survived", "pclass", "sex", "age", "sibsp", "parch", "fare", "embarked", "class", "who", "adult_male", "deck", "embark_town", "alive", "alone"]
+feature_names = ["pclass", "sex", "age", "sibsp", "parch", "fare", "embarked", "class", "who", "adult_male", "deck", "embark_town", "alive", "alone"]
+target_column = "survived"
+target_candidates = ["survived"]
+id_candidates = []
+time_candidates = []
+
+[source]
+report_path = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/outputs/reports/fixtures/titanic-report.json"

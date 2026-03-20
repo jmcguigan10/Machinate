@@ -1,0 +1,24 @@
+[dataset]
+name = "fashion-top-vs-trouser"
+path = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/fashion-top-vs-trouser"
+modality = "vision"
+suspected_problem_type = "binary classification"
+row_count_estimate = 16
+row_count_estimate_known = true
+
+[columns]
+names = ["image_path", "label"]
+feature_names = ["image_path"]
+target_column = "label"
+target_candidates = ["label"]
+id_candidates = []
+time_candidates = []
+
+[source]
+report_path = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/outputs/reports/fixtures/fashion-report.json"
+
+[vision]
+channels = 1
+height = 28
+width = 28
+class_names = ["tshirt_top", "trouser"]

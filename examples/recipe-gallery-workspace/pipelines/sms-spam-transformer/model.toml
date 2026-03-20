@@ -1,0 +1,40 @@
+[model]
+name = "sms-spam-transformer binary text transformer"
+family = "transformer_encoder"
+task = "binary_classification"
+modality = "text"
+
+[input]
+kind = "token_ids"
+token_vocab_size = 32000
+max_sequence_length = 256
+
+[target]
+column = "label"
+kind = "binary"
+
+[backbone]
+model_dim = 128
+num_heads = 4
+num_layers = 2
+ffn_dim = 256
+activation = "gelu"
+normalization = "layernorm"
+dropout = 0.1
+
+[head]
+output_dim = 1
+pooling = "mean"
+
+[procedures.forward]
+input = "features"
+output = "logits"
+
+[procedures.loss]
+kind = "bce_with_logits"
+prediction = "logits"
+target = "target"
+
+[param_store]
+format = "safetensors"
+root_key = "sms_spam_transformer"

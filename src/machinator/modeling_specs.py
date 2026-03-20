@@ -109,6 +109,7 @@ def load_architecture_spec(path: Path) -> ArchitectureSpec:
     input_kind = str(input_section.get("kind", "dense_features")).strip() or "dense_features"
     feature_count = int(input_section.get("feature_count", len(feature_names) or 0))
     hidden_dims = [int(value) for value in backbone.get("hidden_dims", [])]
+    conv_channels = [int(value) for value in backbone.get("channels", [])]
 
     spec = ArchitectureSpec(
         name=str(model.get("name", path.stem)).strip() or path.stem,
@@ -120,9 +121,13 @@ def load_architecture_spec(path: Path) -> ArchitectureSpec:
         feature_count=feature_count,
         token_vocab_size=_int_or_none(input_section.get("token_vocab_size")),
         max_sequence_length=_int_or_none(input_section.get("max_sequence_length")),
+        image_channels=_int_or_none(input_section.get("image_channels")),
+        image_height=_int_or_none(input_section.get("image_height")),
+        image_width=_int_or_none(input_section.get("image_width")),
         target_column=str(target.get("column", "")).strip(),
         target_kind=str(target.get("kind", "")).strip(),
         hidden_dims=hidden_dims,
+        conv_channels=conv_channels,
         model_dim=_int_or_none(backbone.get("model_dim")),
         num_heads=_int_or_none(backbone.get("num_heads")),
         num_layers=_int_or_none(backbone.get("num_layers")),
@@ -211,6 +216,48 @@ def validate_architecture_spec(spec: ArchitectureSpec) -> None:
             raise ModelSpecError(f"unsupported pooling `{pooling}` for transformer_encoder")
         return
 
+    if spec.family == "vision_cnn":
+        if spec.modality != "vision":
+            raise ModelSpecError("vision_cnn requires modality `vision`")
+        if spec.input_kind != "image_tensor":
+            raise ModelSpecError("vision_cnn requires input.kind `image_tensor`")
+        if spec.image_channels is None or spec.image_channels <= 0:
+            raise ModelSpecError("input.image_channels must be positive for vision_cnn")
+        if spec.image_height is None or spec.image_height <= 0:
+            raise ModelSpecError("input.image_height must be positive for vision_cnn")
+        if spec.image_width is None or spec.image_width <= 0:
+            raise ModelSpecError("input.image_width must be positive for vision_cnn")
+        if not spec.conv_channels or any(value <= 0 for value in spec.conv_channels):
+            raise ModelSpecError("backbone.channels must contain one or more positive integers for vision_cnn")
+        if spec.normalization not in {"none", "batchnorm"}:
+            raise ModelSpecError("vision_cnn supports only `none` or `batchnorm` normalization")
+        pooling = spec.pooling or "avg"
+        if pooling != "avg":
+            raise ModelSpecError("vision_cnn currently supports only `avg` pooling")
+        return
+
+    if spec.family == "vision_resnet":
+        if spec.modality != "vision":
+            raise ModelSpecError("vision_resnet requires modality `vision`")
+        if spec.input_kind != "image_tensor":
+            raise ModelSpecError("vision_resnet requires input.kind `image_tensor`")
+        if spec.image_channels is None or spec.image_channels <= 0:
+            raise ModelSpecError("input.image_channels must be positive for vision_resnet")
+        if spec.image_height is None or spec.image_height <= 0:
+            raise ModelSpecError("input.image_height must be positive for vision_resnet")
+        if spec.image_width is None or spec.image_width <= 0:
+            raise ModelSpecError("input.image_width must be positive for vision_resnet")
+        if not spec.conv_channels or any(value <= 0 for value in spec.conv_channels):
+            raise ModelSpecError("backbone.channels must contain one or more positive integers for vision_resnet")
+        if spec.num_layers is None or spec.num_layers <= 0:
+            raise ModelSpecError("backbone.num_layers must be positive for vision_resnet")
+        if spec.normalization not in {"none", "batchnorm"}:
+            raise ModelSpecError("vision_resnet supports only `none` or `batchnorm` normalization")
+        pooling = spec.pooling or "avg"
+        if pooling != "avg":
+            raise ModelSpecError("vision_resnet currently supports only `avg` pooling")
+        return
+
 
 def parameter_count(spec: ArchitectureSpec) -> int:
     if spec.family == "tabular_mlp":
@@ -245,6 +292,50 @@ def parameter_count(spec: ArchitectureSpec) -> int:
             total += spec.model_dim
             total += spec.model_dim * 4
         total += spec.model_dim * spec.head_output_dim
+        total += spec.head_output_dim
+        return total
+
+    if spec.family == "vision_cnn":
+        assert spec.image_channels is not None
+        total = 0
+        in_channels = spec.image_channels
+        for out_channels in spec.conv_channels:
+            total += out_channels * in_channels * 3 * 3
+            total += out_channels
+            if spec.normalization != "none":
+                total += out_channels * 2
+            in_channels = out_channels
+        total += in_channels * spec.head_output_dim
+        total += spec.head_output_dim
+        return total
+
+    if spec.family == "vision_resnet":
+        assert spec.image_channels is not None
+        assert spec.num_layers is not None
+        total = 0
+        in_channels = spec.image_channels
+        stem_channels = spec.conv_channels[0]
+        total += stem_channels * in_channels * 3 * 3
+        total += stem_channels
+        if spec.normalization != "none":
+            total += stem_channels * 2
+        in_channels = stem_channels
+        for stage_channels in spec.conv_channels:
+            for block_index in range(spec.num_layers):
+                stride_projection = block_index == 0 and in_channels != stage_channels
+                total += stage_channels * in_channels * 3 * 3
+                total += stage_channels
+                total += stage_channels * stage_channels * 3 * 3
+                total += stage_channels
+                if spec.normalization != "none":
+                    total += stage_channels * 4
+                if stride_projection:
+                    total += stage_channels * in_channels
+                    total += stage_channels
+                    if spec.normalization != "none":
+                        total += stage_channels * 2
+                in_channels = stage_channels
+        total += in_channels * spec.head_output_dim
         total += spec.head_output_dim
         return total
 
@@ -293,12 +384,20 @@ EDITABLE_SPEC_FIELDS = {
     "input.token_vocab_size": "token_vocab_size",
     "max_sequence_length": "max_sequence_length",
     "input.max_sequence_length": "max_sequence_length",
+    "image_channels": "image_channels",
+    "input.image_channels": "image_channels",
+    "image_height": "image_height",
+    "input.image_height": "image_height",
+    "image_width": "image_width",
+    "input.image_width": "image_width",
     "target_column": "target_column",
     "target.column": "target_column",
     "target_kind": "target_kind",
     "target.kind": "target_kind",
     "hidden_dims": "hidden_dims",
     "backbone.hidden_dims": "hidden_dims",
+    "conv_channels": "conv_channels",
+    "backbone.channels": "conv_channels",
     "model_dim": "model_dim",
     "backbone.model_dim": "model_dim",
     "num_heads": "num_heads",
@@ -334,15 +433,18 @@ def _parse_assignment_value(field: str, raw_value: str) -> Any:
         pass
 
     canonical = EDITABLE_SPEC_FIELDS.get(field, field)
-    if canonical in {"feature_names", "hidden_dims"}:
+    if canonical in {"feature_names", "hidden_dims", "conv_channels"}:
         items = [chunk.strip() for chunk in text.split(",") if chunk.strip()]
-        if canonical == "hidden_dims":
+        if canonical in {"hidden_dims", "conv_channels"}:
             return [int(item) for item in items]
         return items
     if canonical in {
         "feature_count",
         "token_vocab_size",
         "max_sequence_length",
+        "image_channels",
+        "image_height",
+        "image_width",
         "model_dim",
         "num_heads",
         "num_layers",
@@ -362,14 +464,17 @@ def _normalize_edited_value(field_name: str, value: Any) -> Any:
         if not isinstance(value, list):
             raise ModelSpecError("feature_names must be a JSON array or comma-separated list")
         return [str(item).strip() for item in value if str(item).strip()]
-    if field_name == "hidden_dims":
+    if field_name in {"hidden_dims", "conv_channels"}:
         if not isinstance(value, list):
-            raise ModelSpecError("hidden_dims must be a JSON array or comma-separated list")
+            raise ModelSpecError(f"{field_name} must be a JSON array or comma-separated list")
         return [int(item) for item in value]
     if field_name in {
         "feature_count",
         "token_vocab_size",
         "max_sequence_length",
+        "image_channels",
+        "image_height",
+        "image_width",
         "model_dim",
         "num_heads",
         "num_layers",
@@ -441,11 +546,19 @@ def render_model_spec_toml(spec: ArchitectureSpec) -> str:
                 f"feature_count = {spec.feature_count}",
             ]
         )
-    else:
+    elif spec.input_kind == "token_ids":
         lines.extend(
             [
                 f"token_vocab_size = {spec.token_vocab_size or 0}",
                 f"max_sequence_length = {spec.max_sequence_length or 0}",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                f"image_channels = {spec.image_channels or 0}",
+                f"image_height = {spec.image_height or 0}",
+                f"image_width = {spec.image_width or 0}",
             ]
         )
     lines.extend(
@@ -460,7 +573,7 @@ def render_model_spec_toml(spec: ArchitectureSpec) -> str:
     )
     if spec.family == "tabular_mlp":
         lines.append(f"hidden_dims = {json.dumps(spec.hidden_dims)}")
-    else:
+    elif spec.family == "transformer_encoder":
         lines.extend(
             [
                 f"model_dim = {spec.model_dim or 0}",
@@ -469,6 +582,10 @@ def render_model_spec_toml(spec: ArchitectureSpec) -> str:
                 f"ffn_dim = {spec.ffn_dim or 0}",
             ]
         )
+    else:
+        lines.append(f"channels = {json.dumps(spec.conv_channels)}")
+        if spec.family == "vision_resnet":
+            lines.append(f"num_layers = {spec.num_layers or 0}")
     lines.extend(
         [
             f"activation = {_json_string(spec.activation)}",

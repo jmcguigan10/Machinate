@@ -1,0 +1,43 @@
+{
+  "report": {
+    "dataset_name": "fashion-top-vs-trouser",
+    "dataset_path": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/fashion-top-vs-trouser",
+    "suspected_domain": "vision image classification",
+    "suspected_problem_type": "binary classification",
+    "structure": {
+      "format": "image_folder",
+      "file_count": 16,
+      "primary_file": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/fashion-top-vs-trouser",
+      "row_count_estimate": 16,
+      "column_count": 2,
+      "columns": [
+        {
+          "name": "image_path",
+          "dtype_guess": "path",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "label",
+          "dtype_guess": "string",
+          "role_guess": "target",
+          "notes": ""
+        }
+      ],
+      "target_candidates": [
+        "label"
+      ],
+      "id_candidates": [],
+      "time_candidates": [],
+      "image": {
+        "channels": 1,
+        "height": 28,
+        "width": 28,
+        "class_names": [
+          "tshirt_top",
+          "trouser"
+        ]
+      }
+    }
+  }
+}

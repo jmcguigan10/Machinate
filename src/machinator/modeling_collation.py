@@ -38,7 +38,7 @@ def _first_nonempty(values: list[str]) -> str | None:
 
 def render_dataset_facts_toml(facts: DatasetFacts) -> str:
     row_count = 0 if facts.row_count_estimate is None else facts.row_count_estimate
-    return (
+    rendered = (
         "[dataset]\n"
         f"name = {_json_string(facts.dataset_name)}\n"
         f"path = {_json_string(str(facts.dataset_path))}\n"
@@ -58,6 +58,16 @@ def render_dataset_facts_toml(facts: DatasetFacts) -> str:
         "[source]\n"
         f"report_path = {_json_string(str(facts.source_report_path))}\n"
     )
+    if facts.modality == "vision":
+        rendered += (
+            "\n"
+            "[vision]\n"
+            f"channels = {facts.image_channels or 0}\n"
+            f"height = {facts.image_height or 0}\n"
+            f"width = {facts.image_width or 0}\n"
+            f"class_names = {_json_string_array(facts.class_names)}\n"
+        )
+    return rendered
 
 
 def default_training_spec(facts: DatasetFacts, *, family: str = "tabular_mlp") -> TrainingSpec:
@@ -67,6 +77,9 @@ def default_training_spec(facts: DatasetFacts, *, family: str = "tabular_mlp") -
     learning_rate = 0.001
     if family == "transformer_encoder":
         learning_rate = 0.0003
+        batch_size = min(batch_size, 16)
+    if family in {"vision_cnn", "vision_resnet"}:
+        learning_rate = 0.0005
         batch_size = min(batch_size, 16)
     return TrainingSpec(
         epochs=25,
@@ -101,9 +114,13 @@ def architecture_spec_from_dataset_facts(
             feature_count=len(facts.feature_names),
             token_vocab_size=None,
             max_sequence_length=None,
+            image_channels=None,
+            image_height=None,
+            image_width=None,
             target_column=facts.target_column,
             target_kind="binary",
             hidden_dims=[128, 64],
+            conv_channels=[],
             model_dim=None,
             num_heads=None,
             num_layers=None,
@@ -111,6 +128,45 @@ def architecture_spec_from_dataset_facts(
             activation="relu",
             normalization="layernorm",
             dropout=0.1,
+            pooling=None,
+            head_output_dim=1,
+            forward_input="features",
+            forward_output="logits",
+            loss_kind="bce_with_logits",
+            param_store_format="safetensors",
+            param_store_root_key=slugify(pipeline_name, fallback="model").replace("-", "_"),
+        )
+    if recipe_name == "tabular.binary.deep":
+        if "binary" not in facts.suspected_problem_type.lower():
+            raise ModelSpecError(
+                f"unsupported problem type for recipe `{recipe_name}`: `{facts.suspected_problem_type}`"
+            )
+        if facts.modality != "tabular":
+            raise ModelSpecError(f"recipe `{recipe_name}` requires tabular dataset facts")
+        return ArchitectureSpec(
+            name=f"{pipeline_name} deep tabular model",
+            family="tabular_mlp",
+            task="binary_classification",
+            modality="tabular",
+            input_kind="dense_features",
+            feature_names=facts.feature_names,
+            feature_count=len(facts.feature_names),
+            token_vocab_size=None,
+            max_sequence_length=None,
+            image_channels=None,
+            image_height=None,
+            image_width=None,
+            target_column=facts.target_column,
+            target_kind="binary",
+            hidden_dims=[256, 128, 64],
+            conv_channels=[],
+            model_dim=None,
+            num_heads=None,
+            num_layers=None,
+            ffn_dim=None,
+            activation="relu",
+            normalization="layernorm",
+            dropout=0.15,
             pooling=None,
             head_output_dim=1,
             forward_input="features",
@@ -136,9 +192,13 @@ def architecture_spec_from_dataset_facts(
             feature_count=0,
             token_vocab_size=32000,
             max_sequence_length=256,
+            image_channels=None,
+            image_height=None,
+            image_width=None,
             target_column=facts.target_column,
             target_kind="binary",
             hidden_dims=[],
+            conv_channels=[],
             model_dim=128,
             num_heads=4,
             num_layers=2,
@@ -147,6 +207,84 @@ def architecture_spec_from_dataset_facts(
             normalization="layernorm",
             dropout=0.1,
             pooling="mean",
+            head_output_dim=1,
+            forward_input="features",
+            forward_output="logits",
+            loss_kind="bce_with_logits",
+            param_store_format="safetensors",
+            param_store_root_key=slugify(pipeline_name, fallback="model").replace("-", "_"),
+        )
+    if recipe_name == "vision.binary.cnn":
+        if "binary" not in facts.suspected_problem_type.lower():
+            raise ModelSpecError(
+                f"unsupported problem type for recipe `{recipe_name}`: `{facts.suspected_problem_type}`"
+            )
+        if facts.modality != "vision":
+            raise ModelSpecError(f"recipe `{recipe_name}` requires vision dataset facts")
+        return ArchitectureSpec(
+            name=f"{pipeline_name} vanilla image cnn",
+            family="vision_cnn",
+            task="binary_classification",
+            modality="vision",
+            input_kind="image_tensor",
+            feature_names=[],
+            feature_count=0,
+            token_vocab_size=None,
+            max_sequence_length=None,
+            image_channels=facts.image_channels,
+            image_height=facts.image_height,
+            image_width=facts.image_width,
+            target_column=facts.target_column,
+            target_kind="binary",
+            hidden_dims=[],
+            conv_channels=[32, 64, 128],
+            model_dim=None,
+            num_heads=None,
+            num_layers=None,
+            ffn_dim=None,
+            activation="relu",
+            normalization="batchnorm",
+            dropout=0.1,
+            pooling="avg",
+            head_output_dim=1,
+            forward_input="features",
+            forward_output="logits",
+            loss_kind="bce_with_logits",
+            param_store_format="safetensors",
+            param_store_root_key=slugify(pipeline_name, fallback="model").replace("-", "_"),
+        )
+    if recipe_name == "vision.binary.resnet":
+        if "binary" not in facts.suspected_problem_type.lower():
+            raise ModelSpecError(
+                f"unsupported problem type for recipe `{recipe_name}`: `{facts.suspected_problem_type}`"
+            )
+        if facts.modality != "vision":
+            raise ModelSpecError(f"recipe `{recipe_name}` requires vision dataset facts")
+        return ArchitectureSpec(
+            name=f"{pipeline_name} vanilla image resnet",
+            family="vision_resnet",
+            task="binary_classification",
+            modality="vision",
+            input_kind="image_tensor",
+            feature_names=[],
+            feature_count=0,
+            token_vocab_size=None,
+            max_sequence_length=None,
+            image_channels=facts.image_channels,
+            image_height=facts.image_height,
+            image_width=facts.image_width,
+            target_column=facts.target_column,
+            target_kind="binary",
+            hidden_dims=[],
+            conv_channels=[32, 64, 128],
+            model_dim=None,
+            num_heads=None,
+            num_layers=2,
+            ffn_dim=None,
+            activation="relu",
+            normalization="batchnorm",
+            dropout=0.1,
+            pooling="avg",
             head_output_dim=1,
             forward_input="features",
             forward_output="logits",
@@ -183,15 +321,29 @@ def dataset_facts_from_report_path(report_path: Path) -> DatasetFacts:
         for column in column_payloads
         if isinstance(column, dict) and str(column.get("role_guess", "")).strip() == "target"
     ]
+    structure_image = structure.get("image")
+    if not isinstance(structure_image, dict):
+        structure_image = {}
+
+    suspected_domain = clean_optional(str(report.get("suspected_domain", ""))) or ""
+    suspected_domain_lower = suspected_domain.lower()
+    modality = "tabular"
+    if structure_image or "vision" in suspected_domain_lower or "image" in suspected_domain_lower:
+        modality = "vision"
+    elif "text" in suspected_domain_lower or "nlp" in suspected_domain_lower:
+        modality = "text"
+
     target_column = _first_nonempty(target_candidates + role_guess_target)
     if target_column is None:
-        fallback = next((name for name in column_names if name.lower() in {"target", "label", "y"}), None)
+        fallback = next((name for name in column_names if name.lower() in {"target", "label", "y", "class"}), None)
+        if fallback is None and modality == "vision":
+            fallback = "label"
         if fallback is None:
             raise ModelSpecError("could not infer a target column from the delegated report")
         target_column = fallback
 
     feature_names = [name for name in column_names if name != target_column]
-    if not feature_names:
+    if modality == "tabular" and not feature_names:
         raise ModelSpecError("no feature columns remain after removing the target column")
 
     row_count_estimate_raw = structure.get("row_count_estimate")
@@ -201,9 +353,6 @@ def dataset_facts_from_report_path(report_path: Path) -> DatasetFacts:
     dataset_path_text = clean_optional(str(report.get("dataset_path", "")))
     if dataset_path_text is None:
         raise ModelSpecError("delegated report is missing dataset_path")
-
-    suspected_domain = clean_optional(str(report.get("suspected_domain", ""))) or ""
-    modality = "text" if "text" in suspected_domain.lower() or "nlp" in suspected_domain.lower() else "tabular"
 
     return DatasetFacts(
         dataset_name=dataset_name,
@@ -219,4 +368,8 @@ def dataset_facts_from_report_path(report_path: Path) -> DatasetFacts:
         id_candidates=_clean_list(structure.get("id_candidates", [])),
         time_candidates=_clean_list(structure.get("time_candidates", [])),
         source_report_path=report_path.resolve(),
+        image_channels=int(structure_image.get("channels")) if isinstance(structure_image.get("channels"), int) else None,
+        image_height=int(structure_image.get("height")) if isinstance(structure_image.get("height"), int) else None,
+        image_width=int(structure_image.get("width")) if isinstance(structure_image.get("width"), int) else None,
+        class_names=_clean_list(structure_image.get("class_names", [])),
     )

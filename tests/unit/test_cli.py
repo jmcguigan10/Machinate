@@ -193,6 +193,44 @@ class CliSmokeTests(unittest.TestCase):
             artifacts = compile_architecture_spec(spec, root / "compiled_transformer")
             self.assertTrue(Path(artifacts["module_path"]).exists())
 
+    def test_vision_recipes_compile(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            facts = DatasetFacts(
+                dataset_name="demo-vision",
+                dataset_path=root / "fashion",
+                modality="vision",
+                suspected_problem_type="binary classification",
+                row_count_estimate=16,
+                column_names=["image_path", "label"],
+                feature_names=["image_path"],
+                target_column="label",
+                target_candidates=["label"],
+                id_candidates=[],
+                time_candidates=[],
+                source_report_path=root / "report.json",
+                image_channels=1,
+                image_height=28,
+                image_width=28,
+                class_names=["tshirt_top", "trouser"],
+            )
+            cnn_spec = architecture_spec_from_dataset_facts(
+                facts=facts,
+                pipeline_name="demo-cnn",
+                recipe_name="vision.binary.cnn",
+            )
+            self.assertEqual(cnn_spec.family, "vision_cnn")
+            cnn_artifacts = compile_architecture_spec(cnn_spec, root / "compiled_cnn")
+            self.assertTrue(Path(cnn_artifacts["module_path"]).exists())
+
+            resnet_spec = architecture_spec_from_dataset_facts(
+                facts=facts,
+                pipeline_name="demo-resnet",
+                recipe_name="vision.binary.resnet",
+            )
+            self.assertEqual(resnet_spec.family, "vision_resnet")
+            self.assertGreater(parameter_count(resnet_spec), parameter_count(cnn_spec))
+
     def test_edit_and_diff_migration(self) -> None:
         facts = DatasetFacts(
             dataset_name="demo",

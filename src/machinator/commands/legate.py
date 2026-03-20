@@ -202,6 +202,17 @@ def data_report_schema() -> dict[str, object]:
                             "target_candidates": string_list,
                             "id_candidates": string_list,
                             "time_candidates": string_list,
+                            "image": {
+                                "type": ["object", "null"],
+                                "additionalProperties": False,
+                                "required": ["channels", "height", "width", "class_names"],
+                                "properties": {
+                                    "channels": nullable_integer,
+                                    "height": nullable_integer,
+                                    "width": nullable_integer,
+                                    "class_names": string_list,
+                                },
+                            },
                         },
                     },
                     "quality": {
@@ -263,6 +274,7 @@ Context:
 Report expectations:
 - Summarize what the dataset appears to be for in plain English.
 - Identify likely target, ID, and time-related fields when possible.
+- For image datasets, populate `structure.image` with channels, height, width, and class names when you can infer them.
 - Call out data quality, leakage, privacy, and labeling risks.
 - Recommend the next checks needed before building a pipeline.
 - Keep `plain_summary` concise enough to print directly in a terminal window.

@@ -1,0 +1,7 @@
+[training]
+epochs = 25
+batch_size = 16
+learning_rate = 0.0003
+optimizer = "adamw"
+weight_decay = 0.0001
+primary_metric = "accuracy"

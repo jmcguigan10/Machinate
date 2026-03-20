@@ -28,7 +28,7 @@ Machinator has three layers:
 2. Workspace
    A directory that holds shared state, staged data, outputs, and registered pipelines.
 3. Pipeline repo
-   A specific project under `pipelines/` with its own `machinator.toml`, experiment configs, specs, and optional custom code.
+   A specific project under `pipelines/` with its own `machinate.toml`, `config/`, `data/`, specs, and optional custom code.
 
 The important point is that Machinator does not expect every pipeline repo to reinvent orchestration. The workspace and the CLI own that.
 
@@ -120,7 +120,7 @@ Machinator will:
   - `dataset_facts.toml`
   - `model.toml`
   - `training.toml`
-- append collation metadata into `machinator.toml`
+- append collation metadata into `machinate.toml`
 
 After that, move into the created repo if you want:
 
@@ -157,9 +157,9 @@ If `model.toml` and `training.toml` exist, the generated starter task uses them 
 
 ### Pipeline-level files
 
-- `machinator.toml`
+- `machinate.toml`
   The main pipeline configuration and task declarations.
-- `configs/experiments/*.toml`
+- `config/*.toml`
   Experiment settings such as baseline training values.
 - `dataset_facts.toml`
   Normalized facts derived from the delegated data report.
@@ -323,7 +323,7 @@ macht task list
 
 Then inspect:
 
-- `machinator.toml`
+- `machinate.toml`
 - `dataset_facts.toml`
 - `model.toml`
 - `training.toml`

@@ -1,0 +1,65 @@
+[pipeline]
+name = "titanic-vanilla-mlp"
+slug = "titanic-vanilla-mlp"
+type = "tabular"
+template = "native-python"
+package = "titanic_vanilla_mlp"
+
+# BEGIN MACHINATE RECIPE
+[recipe]
+name = "tabular.binary.basic"
+family = "tabular_mlp"
+variant = "vanilla"
+modality = "tabular"
+task = "binary_classification"
+# END MACHINATE RECIPE
+
+[paths]
+source_root = "src"
+data_root = "data"
+config_root = "config"
+experiments = "config"
+outputs = "outputs"
+
+[specs]
+dataset_facts = "dataset_facts.toml"
+model = "model.toml"
+training = "training.toml"
+
+[dataset]
+kind = "csv"
+target_column = "label"
+
+[tasks.validate]
+entry = "titanic_vanilla_mlp.tasks:validate"
+description = "Validate the experiment configuration"
+requires_dataset = false
+requires_experiment = true
+
+[tasks.audit]
+entry = "titanic_vanilla_mlp.tasks:audit"
+description = "Audit the dataset and write a JSON summary"
+requires_dataset = true
+requires_experiment = true
+
+[tasks.train]
+entry = "titanic_vanilla_mlp.tasks:train"
+description = "Run a demo training task"
+requires_dataset = false
+requires_experiment = true
+
+[tasks.smoke]
+entry = "titanic_vanilla_mlp.tasks:smoke"
+description = "Run validate, audit, and train in sequence"
+requires_dataset = true
+requires_experiment = true
+
+# BEGIN MACHINATE COLLATION
+[collation]
+generated_at = "2026-03-20T12:33:47Z"
+source_report = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/outputs/reports/fixtures/titanic-report.json"
+source_dataset = "titanic"
+intent_task = "binary_classification"
+recipe = "tabular.binary.basic"
+model_family = "tabular_mlp"
+# END MACHINATE COLLATION

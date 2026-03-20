@@ -33,6 +33,8 @@ TASK_DESCRIPTIONS = {
     "train": "Run a demo training task",
     "smoke": "Run validate, audit, and train in sequence",
 }
+RECIPE_BEGIN = "# BEGIN MACHINATE RECIPE"
+RECIPE_END = "# END MACHINATE RECIPE"
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -58,6 +60,15 @@ def pipeline_config_toml(
     package_slug: str,
     tasks: list[str],
 ) -> str:
+    modality = {
+        "tabular": "tabular",
+        "vision": "vision",
+        "nlp": "text",
+    }.get(pipeline_type, "custom")
+    dataset_kind = {
+        "vision": "image_folder",
+        "nlp": "text_table",
+    }.get(pipeline_type, "csv")
     lines = [
         "[pipeline]",
         f'name = "{pipeline_name}"',
@@ -66,9 +77,20 @@ def pipeline_config_toml(
         f'template = "{template}"',
         f'package = "{package_slug}"',
         "",
+        RECIPE_BEGIN,
+        "[recipe]",
+        'name = "manual.vanilla"',
+        'family = "unresolved"',
+        'variant = "vanilla"',
+        f'modality = "{modality}"',
+        'task = "binary_classification"',
+        RECIPE_END,
+        "",
         "[paths]",
         'source_root = "src"',
-        'experiments = "configs/experiments"',
+        'data_root = "data"',
+        'config_root = "config"',
+        'experiments = "config"',
         'outputs = "outputs"',
         "",
         "[specs]",
@@ -77,8 +99,8 @@ def pipeline_config_toml(
         'training = "training.toml"',
         "",
         "[dataset]",
-        'kind = "csv"',
-        'target_column = "target"',
+        f'kind = "{dataset_kind}"',
+        'target_column = "label"',
         "",
     ]
     for task_name in tasks:
@@ -104,7 +126,7 @@ This manual pipeline scaffold was created by `macht new pipeline`.
 
 - pipeline_type: {pipeline_type}
 - template: {template}
-- pipeline_config: `machinator.toml`
+- pipeline_config: `machinate.toml`
 
 ## Native Usage
 
@@ -124,18 +146,22 @@ macht run train --experiment baseline
 
 
 def baseline_config(name: str, pipeline_type: str) -> str:
+    dataset_kind = {
+        "vision": "image_folder",
+        "nlp": "text_table",
+    }.get(pipeline_type, "csv")
     return """[pipeline]
 name = "%s"
 type = "%s"
 
 [dataset]
-kind = "csv"
-target_column = "target"
+kind = "%s"
+target_column = "label"
 
 [training]
 epochs = 1
 learning_rate = 0.01
-""" % (name, pipeline_type)
+""" % (name, pipeline_type, dataset_kind)
 
 
 def starter_tasks_module() -> str:
@@ -364,7 +390,7 @@ def create_pipeline_scaffold(
     resolved_tasks = list(tasks or STARTER_TASKS)
     package_slug = pipeline_slug.replace("-", "_").replace(".", "_")
     resolved_repo_path = (repo_path or (paths.pipeline_root / pipeline_slug)).expanduser().resolve()
-    config_path = resolved_repo_path / "machinator.toml"
+    config_path = resolved_repo_path / "machinate.toml"
     manifest_path = paths.pipeline_registry_root / f"{pipeline_slug}.json"
 
     if resolved_repo_path.exists() and any(resolved_repo_path.iterdir()):
@@ -372,7 +398,8 @@ def create_pipeline_scaffold(
     if manifest_path.exists():
         raise SystemExit(f"pipeline registry entry already exists: {manifest_path}")
 
-    (resolved_repo_path / "configs" / "experiments").mkdir(parents=True, exist_ok=True)
+    (resolved_repo_path / "config").mkdir(parents=True, exist_ok=True)
+    (resolved_repo_path / "data").mkdir(parents=True, exist_ok=True)
     (resolved_repo_path / "src" / package_slug).mkdir(parents=True, exist_ok=True)
     (resolved_repo_path / "outputs").mkdir(parents=True, exist_ok=True)
 
@@ -391,7 +418,7 @@ def create_pipeline_scaffold(
     (resolved_repo_path / "requirements.txt").write_text("# Add runtime dependencies here.\n")
     (resolved_repo_path / "src" / package_slug / "__init__.py").write_text(f'"""Pipeline package for {pipeline_name}."""\n')
     (resolved_repo_path / "src" / package_slug / "tasks.py").write_text(starter_tasks_module())
-    (resolved_repo_path / "configs" / "experiments" / "baseline.toml").write_text(
+    (resolved_repo_path / "config" / "baseline.toml").write_text(
         baseline_config(pipeline_name, pipeline_type)
     )
 

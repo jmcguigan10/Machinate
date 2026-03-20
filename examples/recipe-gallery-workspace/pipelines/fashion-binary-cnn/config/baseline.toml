@@ -1,0 +1,7 @@
+[dataset]
+kind = "image_folder"
+target_column = "label"
+
+[training]
+epochs = 1
+learning_rate = 0.001

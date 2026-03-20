@@ -46,7 +46,7 @@ The first scaffold in this repo supports:
 - `macht run <task>`
 - `macht doctor`
 
-The generated pipeline repo is intentionally lightweight, but it is now native to Machinator. It gives you a `machinator.toml` pipeline config, TOML experiment config, a starter Python task module, and a workspace registration manifest. It does not generate or rely on a `Makefile`. The new model system starts moving more pipeline definition into spec files such as `dataset_facts.toml`, `model.toml`, and `training.toml`.
+The generated pipeline repo is intentionally lightweight, but it is now native to Machinator. It gives you a recipe-first `machinate.toml` pipeline key, a `config/` directory, a `data/` directory, a starter Python task module, and a workspace registration manifest. It does not generate or rely on a `Makefile`. The new model system starts moving more pipeline definition into spec files such as `dataset_facts.toml`, `model.toml`, and `training.toml`.
 
 ## Install For Development
 
@@ -108,7 +108,7 @@ macht model compile
 macht run train --experiment baseline --dataset /path/to/data.csv
 ```
 
-`macht collate pipeline --create` is now the preferred dataset-first path. It can create the pipeline scaffold directly from the delegated report, prompt for missing intent in interactive mode, select a recipe, write `dataset_facts.toml`, `model.toml`, and `training.toml`, and append the selected recipe metadata back into `machinator.toml`.
+`macht collate pipeline --create` is now the preferred dataset-first path. It can create the pipeline scaffold directly from the delegated report, prompt for missing intent in interactive mode, select a recipe, write `dataset_facts.toml`, `model.toml`, and `training.toml`, and append the selected recipe metadata back into `machinate.toml`.
 
 `macht new pipeline` still exists, but it is now the manual/advanced escape hatch when you intentionally want to scaffold a pipeline before report-driven collation.
 
@@ -117,6 +117,12 @@ The current compiler paths support:
 - `tabular_mlp`
 - `binary_classification`
 - `tabular` modality
+- `vision_cnn`
+- `binary_classification`
+- `vision` modality
+- `vision_resnet`
+- `binary_classification`
+- `vision` modality
 - `transformer_encoder`
 - `binary_classification`
 - `text` modality
@@ -154,7 +160,15 @@ Machinator separates three layers:
 3. Pipeline runtime environments
    Repo-local environments created per pipeline, not shared globally.
 
-Pipelines are configured by `machinator.toml` and executed through `macht`, not through generated Make targets.
+Pipelines are configured by `machinate.toml` and executed through `macht`, not through generated Make targets.
+
+The repo now also ships a checked-in recipe gallery workspace under `examples/recipe-gallery-workspace/`. That gallery downloads curated public datasets, collates five starter pipelines, and shows the same recipe-first flow across:
+
+- `tabular.binary.basic`
+- `tabular.binary.deep`
+- `text.binary.transformer`
+- `vision.binary.cnn`
+- `vision.binary.resnet`
 
 The long-term architecture now has two layers:
 

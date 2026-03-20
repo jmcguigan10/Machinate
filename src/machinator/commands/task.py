@@ -49,7 +49,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     task_parser = subparsers.add_parser("task", help="Inspect native Machinator pipeline tasks")
     task_subparsers = task_parser.add_subparsers(dest="task_command", required=True)
 
-    task_list = task_subparsers.add_parser("list", help="List the tasks declared in machinator.toml")
+    task_list = task_subparsers.add_parser("list", help="List the tasks declared in machinate.toml")
     task_list.add_argument("--workspace")
     task_list.add_argument("--pipeline")
     task_list.add_argument("--pipeline-path")

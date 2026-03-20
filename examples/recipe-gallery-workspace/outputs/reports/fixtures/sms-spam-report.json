@@ -1,0 +1,34 @@
+{
+  "report": {
+    "dataset_name": "sms-spam",
+    "dataset_path": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/sms-spam/sms_spam.csv",
+    "suspected_domain": "text binary classification",
+    "suspected_problem_type": "binary classification",
+    "structure": {
+      "format": "csv",
+      "file_count": 1,
+      "primary_file": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/sms-spam/sms_spam.csv",
+      "row_count_estimate": 5574,
+      "column_count": 2,
+      "columns": [
+        {
+          "name": "text",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "label",
+          "dtype_guess": "string",
+          "role_guess": "target",
+          "notes": ""
+        }
+      ],
+      "target_candidates": [
+        "label"
+      ],
+      "id_candidates": [],
+      "time_candidates": []
+    }
+  }
+}

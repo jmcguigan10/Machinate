@@ -1,0 +1,112 @@
+{
+  "report": {
+    "dataset_name": "titanic",
+    "dataset_path": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/titanic/titanic.csv",
+    "suspected_domain": "tabular binary classification",
+    "suspected_problem_type": "binary classification",
+    "structure": {
+      "format": "csv",
+      "file_count": 1,
+      "primary_file": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/titanic/titanic.csv",
+      "row_count_estimate": 891,
+      "column_count": 15,
+      "columns": [
+        {
+          "name": "survived",
+          "dtype_guess": "string",
+          "role_guess": "target",
+          "notes": ""
+        },
+        {
+          "name": "pclass",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "sex",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "age",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "sibsp",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "parch",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "fare",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "embarked",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "class",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "who",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "adult_male",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "deck",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "embark_town",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "alive",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "alone",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        }
+      ],
+      "target_candidates": [
+        "survived"
+      ],
+      "id_candidates": [],
+      "time_candidates": []
+    }
+  }
+}

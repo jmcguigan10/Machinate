@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 from pathlib import Path
 
 # These constants describe the currently supported surface. Keeping them here
 # makes the allowed architecture/method vocabulary easy to inspect in one file.
-VALID_MODEL_FAMILIES = {"tabular_mlp", "transformer_encoder"}
-VALID_MODALITIES = {"tabular", "text"}
-VALID_INPUT_KINDS = {"dense_features", "token_ids"}
+VALID_MODEL_FAMILIES = {"tabular_mlp", "transformer_encoder", "vision_cnn", "vision_resnet"}
+VALID_MODALITIES = {"tabular", "text", "vision"}
+VALID_INPUT_KINDS = {"dense_features", "token_ids", "image_tensor"}
 VALID_TASKS = {"binary_classification"}
 VALID_TARGET_KINDS = {"binary"}
 VALID_ACTIVATIONS = {"relu", "gelu", "silu", "tanh"}
 VALID_NORMALIZATIONS = {"none", "batchnorm", "layernorm"}
 VALID_LOSSES = {"bce_with_logits"}
-VALID_POOLING = {"mean", "cls"}
+VALID_POOLING = {"mean", "cls", "avg"}
 
 
 class ModelSpecError(ValueError):
@@ -35,6 +35,10 @@ class DatasetFacts:
     id_candidates: list[str]
     time_candidates: list[str]
     source_report_path: Path
+    image_channels: int | None = None
+    image_height: int | None = None
+    image_width: int | None = None
+    class_names: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -61,9 +65,13 @@ class ArchitectureSpec:
     feature_count: int
     token_vocab_size: int | None
     max_sequence_length: int | None
+    image_channels: int | None
+    image_height: int | None
+    image_width: int | None
     target_column: str
     target_kind: str
     hidden_dims: list[int]
+    conv_channels: list[int]
     model_dim: int | None
     num_heads: int | None
     num_layers: int | None

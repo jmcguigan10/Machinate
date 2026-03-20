@@ -68,12 +68,12 @@ class DatasetFirstFlowTests(unittest.TestCase):
             )
 
             pipeline_root = workspace / "pipelines" / "demo-pipeline"
-            self.assertTrue((pipeline_root / "machinator.toml").exists())
+            self.assertTrue((pipeline_root / "machinate.toml").exists())
             self.assertTrue((pipeline_root / "dataset_facts.toml").exists())
             self.assertTrue((pipeline_root / "model.toml").exists())
             self.assertTrue((pipeline_root / "training.toml").exists())
 
-            config_text = (pipeline_root / "machinator.toml").read_text()
+            config_text = (pipeline_root / "machinate.toml").read_text()
             self.assertIn("[collation]", config_text)
             self.assertIn('recipe = "tabular.binary.basic"', config_text)
 

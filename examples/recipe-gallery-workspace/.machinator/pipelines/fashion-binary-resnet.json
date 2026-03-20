@@ -1,0 +1,15 @@
+{
+  "pipeline_name": "fashion-binary-resnet",
+  "pipeline_slug": "fashion-binary-resnet",
+  "repo_path": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/pipelines/fashion-binary-resnet",
+  "pipeline_type": "vision",
+  "template": "native-python",
+  "created_at": "2026-03-20T12:33:48Z",
+  "pipeline_config_path": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/pipelines/fashion-binary-resnet/machinate.toml",
+  "supported_tasks": [
+    "validate",
+    "audit",
+    "train",
+    "smoke"
+  ]
+}

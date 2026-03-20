@@ -1,0 +1,64 @@
+{
+  "report": {
+    "dataset_name": "penguins-sex",
+    "dataset_path": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/penguins/penguins_binary.csv",
+    "suspected_domain": "tabular binary classification",
+    "suspected_problem_type": "binary classification",
+    "structure": {
+      "format": "csv",
+      "file_count": 1,
+      "primary_file": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/penguins/penguins_binary.csv",
+      "row_count_estimate": 333,
+      "column_count": 7,
+      "columns": [
+        {
+          "name": "species",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "island",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "bill_length_mm",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "bill_depth_mm",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "flipper_length_mm",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "body_mass_g",
+          "dtype_guess": "string",
+          "role_guess": "feature",
+          "notes": ""
+        },
+        {
+          "name": "sex",
+          "dtype_guess": "string",
+          "role_guess": "target",
+          "notes": ""
+        }
+      ],
+      "target_candidates": [
+        "sex"
+      ],
+      "id_candidates": [],
+      "time_candidates": []
+    }
+  }
+}

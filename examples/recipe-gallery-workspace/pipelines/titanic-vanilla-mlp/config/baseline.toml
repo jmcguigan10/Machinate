@@ -1,0 +1,7 @@
+[dataset]
+kind = "csv"
+target_column = "survived"
+
+[training]
+epochs = 1
+learning_rate = 0.001

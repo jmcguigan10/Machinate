@@ -1,0 +1,36 @@
+[model]
+name = "penguins-deep-mlp deep tabular model"
+family = "tabular_mlp"
+task = "binary_classification"
+modality = "tabular"
+
+[input]
+kind = "dense_features"
+feature_names = ["species", "island", "bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g"]
+feature_count = 6
+
+[target]
+column = "sex"
+kind = "binary"
+
+[backbone]
+hidden_dims = [256, 128, 64]
+activation = "relu"
+normalization = "layernorm"
+dropout = 0.15
+
+[head]
+output_dim = 1
+
+[procedures.forward]
+input = "features"
+output = "logits"
+
+[procedures.loss]
+kind = "bce_with_logits"
+prediction = "logits"
+target = "target"
+
+[param_store]
+format = "safetensors"
+root_key = "penguins_deep_mlp"

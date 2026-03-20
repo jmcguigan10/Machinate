@@ -7,6 +7,8 @@ from machinator.commands.task import resolve_selected_pipeline
 from machinator.commands.new import (
     PIPELINE_TEMPLATES,
     PIPELINE_TYPES,
+    RECIPE_BEGIN,
+    RECIPE_END,
     create_pipeline_scaffold,
     selected_tasks,
 )
@@ -74,6 +76,18 @@ def write_if_allowed(path: Path, content: str, *, force: bool) -> None:
     path.write_text(content)
 
 
+def render_baseline_experiment(*, dataset_kind: str, target_column: str) -> str:
+    return (
+        "[dataset]\n"
+        f'kind = "{dataset_kind}"\n'
+        f'target_column = "{target_column}"\n'
+        "\n"
+        "[training]\n"
+        "epochs = 1\n"
+        "learning_rate = 0.001\n"
+    )
+
+
 def infer_intent_task(problem_type: str) -> str | None:
     lowered = problem_type.lower()
     if "binary" in lowered:
@@ -102,8 +116,12 @@ def candidate_recipes(*, modality: str, intent_task: str) -> list[MenuChoice]:
     recipes: list[MenuChoice] = []
     if intent_task == "binary_classification" and modality == "tabular":
         recipes.append(MenuChoice("tabular.binary.basic", "tabular.binary.basic"))
+        recipes.append(MenuChoice("tabular.binary.deep", "tabular.binary.deep"))
     if intent_task == "binary_classification" and modality == "text":
         recipes.append(MenuChoice("text.binary.transformer", "text.binary.transformer"))
+    if intent_task == "binary_classification" and modality == "vision":
+        recipes.append(MenuChoice("vision.binary.cnn", "vision.binary.cnn"))
+        recipes.append(MenuChoice("vision.binary.resnet", "vision.binary.resnet"))
     return recipes
 
 
@@ -128,7 +146,16 @@ def default_pipeline_type_for_modality(modality: str) -> str:
     return {
         "tabular": "tabular",
         "text": "nlp",
+        "vision": "vision",
     }.get(modality, "custom")
+
+
+def default_dataset_kind_for_modality(modality: str) -> str:
+    return {
+        "tabular": "csv",
+        "text": "text_table",
+        "vision": "image_folder",
+    }.get(modality, "data")
 
 
 def resolve_pipeline_creation_name(args: argparse.Namespace, dataset_name: str) -> str:
@@ -182,6 +209,25 @@ def resolve_or_create_pipeline(args: argparse.Namespace, *, dataset_name: str, m
     return Path(scaffold["repo_path"]), workspace_root
 
 
+def recipe_variant(recipe_name: str) -> str:
+    if recipe_name.endswith(".deep"):
+        return "deep"
+    return "vanilla"
+
+
+def render_recipe_block(*, recipe_name: str, model_family: str, modality: str, intent_task: str) -> str:
+    return (
+        f"{RECIPE_BEGIN}\n"
+        "[recipe]\n"
+        f'name = "{recipe_name}"\n'
+        f'family = "{model_family}"\n'
+        f'variant = "{recipe_variant(recipe_name)}"\n'
+        f'modality = "{modality}"\n'
+        f'task = "{intent_task}"\n'
+        f"{RECIPE_END}\n"
+    )
+
+
 def render_collation_block(
     *,
     report_path: Path,
@@ -203,6 +249,16 @@ def render_collation_block(
     )
 
 
+def upsert_generated_block(*, existing: str, begin_marker: str, end_marker: str, rendered_block: str) -> str:
+    if begin_marker in existing and end_marker in existing:
+        start = existing.index(begin_marker)
+        end = existing.index(end_marker) + len(end_marker)
+        updated = f"{existing[:start].rstrip()}\n\n{rendered_block}\n{existing[end:].lstrip()}"
+    else:
+        updated = existing.rstrip() + "\n\n" + rendered_block
+    return updated.rstrip() + "\n"
+
+
 def upsert_collation_block(
     *,
     config_path: Path,
@@ -211,8 +267,15 @@ def upsert_collation_block(
     intent_task: str,
     recipe_name: str,
     model_family: str,
+    modality: str,
 ) -> None:
-    block = render_collation_block(
+    recipe_block = render_recipe_block(
+        recipe_name=recipe_name,
+        model_family=model_family,
+        modality=modality,
+        intent_task=intent_task,
+    )
+    collation_block = render_collation_block(
         report_path=report_path,
         dataset_name=dataset_name,
         intent_task=intent_task,
@@ -220,13 +283,19 @@ def upsert_collation_block(
         model_family=model_family,
     )
     existing = config_path.read_text()
-    if COLLATION_BEGIN in existing and COLLATION_END in existing:
-        start = existing.index(COLLATION_BEGIN)
-        end = existing.index(COLLATION_END) + len(COLLATION_END)
-        updated = f"{existing[:start].rstrip()}\n\n{block}\n{existing[end:].lstrip()}"
-    else:
-        updated = existing.rstrip() + "\n\n" + block
-    config_path.write_text(updated.rstrip() + "\n")
+    updated = upsert_generated_block(
+        existing=existing,
+        begin_marker=RECIPE_BEGIN,
+        end_marker=RECIPE_END,
+        rendered_block=recipe_block,
+    )
+    updated = upsert_generated_block(
+        existing=updated,
+        begin_marker=COLLATION_BEGIN,
+        end_marker=COLLATION_END,
+        rendered_block=collation_block,
+    )
+    config_path.write_text(updated)
 
 
 def cmd_collate_pipeline(args: argparse.Namespace) -> int:
@@ -251,17 +320,26 @@ def cmd_collate_pipeline(args: argparse.Namespace) -> int:
     dataset_facts_path = pipeline_root / "dataset_facts.toml"
     model_path = pipeline_root / "model.toml"
     training_path = pipeline_root / "training.toml"
+    baseline_config_path = pipeline_root / "config" / "baseline.toml"
 
     write_if_allowed(dataset_facts_path, render_dataset_facts_toml(facts), force=args.force)
     write_if_allowed(model_path, render_model_spec_toml(model_spec), force=args.force)
     write_if_allowed(training_path, render_training_spec_toml(training_spec), force=args.force)
+    if args.create or args.force or not baseline_config_path.exists():
+        baseline_config_path.write_text(
+            render_baseline_experiment(
+                dataset_kind=default_dataset_kind_for_modality(facts.modality),
+                target_column=facts.target_column,
+            )
+        )
     upsert_collation_block(
-        config_path=pipeline_root / "machinator.toml",
+        config_path=pipeline_root / "machinate.toml",
         report_path=report_path,
         dataset_name=facts.dataset_name,
         intent_task=intent_task,
         recipe_name=recipe_name,
         model_family=model_spec.family,
+        modality=facts.modality,
     )
 
     print("pipeline specs collated")

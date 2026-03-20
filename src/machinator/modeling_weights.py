@@ -186,6 +186,210 @@ def build_param_store_manifest(spec: ArchitectureSpec) -> dict[str, Any]:
                 "dtype": "float32",
             }
         )
+    elif spec.family == "vision_cnn":
+        assert spec.image_channels is not None
+        in_channels = spec.image_channels
+        for layer_index, out_channels in enumerate(spec.conv_channels):
+            parameters.append(
+                {
+                    "tensor_key": f"convs.{layer_index}.weight",
+                    "owner_id": f"backbone.conv.{layer_index}",
+                    "shape": [out_channels, in_channels, 3, 3],
+                    "dtype": "float32",
+                }
+            )
+            parameters.append(
+                {
+                    "tensor_key": f"convs.{layer_index}.bias",
+                    "owner_id": f"backbone.conv.{layer_index}",
+                    "shape": [out_channels],
+                    "dtype": "float32",
+                }
+            )
+            if spec.normalization != "none":
+                parameters.append(
+                    {
+                        "tensor_key": f"norms.{layer_index}.weight",
+                        "owner_id": f"backbone.norm.{layer_index}",
+                        "shape": [out_channels],
+                        "dtype": "float32",
+                    }
+                )
+                parameters.append(
+                    {
+                        "tensor_key": f"norms.{layer_index}.bias",
+                        "owner_id": f"backbone.norm.{layer_index}",
+                        "shape": [out_channels],
+                        "dtype": "float32",
+                    }
+                )
+            in_channels = out_channels
+        parameters.append(
+            {
+                "tensor_key": "head.weight",
+                "owner_id": "head",
+                "shape": [spec.head_output_dim, in_channels],
+                "dtype": "float32",
+            }
+        )
+        parameters.append(
+            {
+                "tensor_key": "head.bias",
+                "owner_id": "head",
+                "shape": [spec.head_output_dim],
+                "dtype": "float32",
+            }
+        )
+    elif spec.family == "vision_resnet":
+        assert spec.image_channels is not None
+        assert spec.num_layers is not None
+        stem_channels = spec.conv_channels[0]
+        parameters.extend(
+            [
+                {
+                    "tensor_key": "stem.weight",
+                    "owner_id": "stem",
+                    "shape": [stem_channels, spec.image_channels, 3, 3],
+                    "dtype": "float32",
+                },
+                {
+                    "tensor_key": "stem.bias",
+                    "owner_id": "stem",
+                    "shape": [stem_channels],
+                    "dtype": "float32",
+                },
+            ]
+        )
+        if spec.normalization != "none":
+            parameters.extend(
+                [
+                    {
+                        "tensor_key": "stem_norm.weight",
+                        "owner_id": "stem_norm",
+                        "shape": [stem_channels],
+                        "dtype": "float32",
+                    },
+                    {
+                        "tensor_key": "stem_norm.bias",
+                        "owner_id": "stem_norm",
+                        "shape": [stem_channels],
+                        "dtype": "float32",
+                    },
+                ]
+            )
+        in_channels = stem_channels
+        for stage_index, stage_channels in enumerate(spec.conv_channels):
+            for block_index in range(spec.num_layers):
+                block_prefix = f"stages.{stage_index}.{block_index}"
+                owner_prefix = f"backbone.stage.{stage_index}.block.{block_index}"
+                parameters.extend(
+                    [
+                        {
+                            "tensor_key": f"{block_prefix}.conv1.weight",
+                            "owner_id": f"{owner_prefix}.conv1",
+                            "shape": [stage_channels, in_channels, 3, 3],
+                            "dtype": "float32",
+                        },
+                        {
+                            "tensor_key": f"{block_prefix}.conv1.bias",
+                            "owner_id": f"{owner_prefix}.conv1",
+                            "shape": [stage_channels],
+                            "dtype": "float32",
+                        },
+                        {
+                            "tensor_key": f"{block_prefix}.conv2.weight",
+                            "owner_id": f"{owner_prefix}.conv2",
+                            "shape": [stage_channels, stage_channels, 3, 3],
+                            "dtype": "float32",
+                        },
+                        {
+                            "tensor_key": f"{block_prefix}.conv2.bias",
+                            "owner_id": f"{owner_prefix}.conv2",
+                            "shape": [stage_channels],
+                            "dtype": "float32",
+                        },
+                    ]
+                )
+                if spec.normalization != "none":
+                    parameters.extend(
+                        [
+                            {
+                                "tensor_key": f"{block_prefix}.norm1.weight",
+                                "owner_id": f"{owner_prefix}.norm1",
+                                "shape": [stage_channels],
+                                "dtype": "float32",
+                            },
+                            {
+                                "tensor_key": f"{block_prefix}.norm1.bias",
+                                "owner_id": f"{owner_prefix}.norm1",
+                                "shape": [stage_channels],
+                                "dtype": "float32",
+                            },
+                            {
+                                "tensor_key": f"{block_prefix}.norm2.weight",
+                                "owner_id": f"{owner_prefix}.norm2",
+                                "shape": [stage_channels],
+                                "dtype": "float32",
+                            },
+                            {
+                                "tensor_key": f"{block_prefix}.norm2.bias",
+                                "owner_id": f"{owner_prefix}.norm2",
+                                "shape": [stage_channels],
+                                "dtype": "float32",
+                            },
+                        ]
+                    )
+                if in_channels != stage_channels:
+                    parameters.extend(
+                        [
+                            {
+                                "tensor_key": f"{block_prefix}.proj.weight",
+                                "owner_id": f"{owner_prefix}.proj",
+                                "shape": [stage_channels, in_channels, 1, 1],
+                                "dtype": "float32",
+                            },
+                            {
+                                "tensor_key": f"{block_prefix}.proj.bias",
+                                "owner_id": f"{owner_prefix}.proj",
+                                "shape": [stage_channels],
+                                "dtype": "float32",
+                            },
+                        ]
+                    )
+                    if spec.normalization != "none":
+                        parameters.extend(
+                            [
+                                {
+                                    "tensor_key": f"{block_prefix}.proj_norm.weight",
+                                    "owner_id": f"{owner_prefix}.proj_norm",
+                                    "shape": [stage_channels],
+                                    "dtype": "float32",
+                                },
+                                {
+                                    "tensor_key": f"{block_prefix}.proj_norm.bias",
+                                    "owner_id": f"{owner_prefix}.proj_norm",
+                                    "shape": [stage_channels],
+                                    "dtype": "float32",
+                                },
+                            ]
+                        )
+                in_channels = stage_channels
+        parameters.append(
+            {
+                "tensor_key": "head.weight",
+                "owner_id": "head",
+                "shape": [spec.head_output_dim, in_channels],
+                "dtype": "float32",
+            }
+        )
+        parameters.append(
+            {
+                "tensor_key": "head.bias",
+                "owner_id": "head",
+                "shape": [spec.head_output_dim],
+                "dtype": "float32",
+            }
+        )
     else:
         raise ModelSpecError(f"unsupported model family `{spec.family}`")
 
@@ -208,8 +412,12 @@ def diff_architecture_specs(old_spec: ArchitectureSpec, new_spec: ArchitectureSp
         "feature_names": (old_spec.feature_names, new_spec.feature_names),
         "token_vocab_size": (old_spec.token_vocab_size, new_spec.token_vocab_size),
         "max_sequence_length": (old_spec.max_sequence_length, new_spec.max_sequence_length),
+        "image_channels": (old_spec.image_channels, new_spec.image_channels),
+        "image_height": (old_spec.image_height, new_spec.image_height),
+        "image_width": (old_spec.image_width, new_spec.image_width),
         "target_column": (old_spec.target_column, new_spec.target_column),
         "hidden_dims": (old_spec.hidden_dims, new_spec.hidden_dims),
+        "conv_channels": (old_spec.conv_channels, new_spec.conv_channels),
         "model_dim": (old_spec.model_dim, new_spec.model_dim),
         "num_heads": (old_spec.num_heads, new_spec.num_heads),
         "num_layers": (old_spec.num_layers, new_spec.num_layers),

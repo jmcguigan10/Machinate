@@ -1,0 +1,36 @@
+[model]
+name = "titanic-vanilla-mlp binary tabular model"
+family = "tabular_mlp"
+task = "binary_classification"
+modality = "tabular"
+
+[input]
+kind = "dense_features"
+feature_names = ["pclass", "sex", "age", "sibsp", "parch", "fare", "embarked", "class", "who", "adult_male", "deck", "embark_town", "alive", "alone"]
+feature_count = 14
+
+[target]
+column = "survived"
+kind = "binary"
+
+[backbone]
+hidden_dims = [128, 64]
+activation = "relu"
+normalization = "layernorm"
+dropout = 0.1
+
+[head]
+output_dim = 1
+
+[procedures.forward]
+input = "features"
+output = "logits"
+
+[procedures.loss]
+kind = "bce_with_logits"
+prediction = "logits"
+target = "target"
+
+[param_store]
+format = "safetensors"
+root_key = "titanic_vanilla_mlp"

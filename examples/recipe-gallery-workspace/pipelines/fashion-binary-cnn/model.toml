@@ -1,0 +1,38 @@
+[model]
+name = "fashion-binary-cnn vanilla image cnn"
+family = "vision_cnn"
+task = "binary_classification"
+modality = "vision"
+
+[input]
+kind = "image_tensor"
+image_channels = 1
+image_height = 28
+image_width = 28
+
+[target]
+column = "label"
+kind = "binary"
+
+[backbone]
+channels = [32, 64, 128]
+activation = "relu"
+normalization = "batchnorm"
+dropout = 0.1
+
+[head]
+output_dim = 1
+pooling = "avg"
+
+[procedures.forward]
+input = "features"
+output = "logits"
+
+[procedures.loss]
+kind = "bce_with_logits"
+prediction = "logits"
+target = "target"
+
+[param_store]
+format = "safetensors"
+root_key = "fashion_binary_cnn"

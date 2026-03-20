@@ -19,7 +19,9 @@ from urllib.parse import urlparse
 
 
 WORKSPACE_SENTINEL = Path(".machinator/workspace.json")
-PIPELINE_SENTINEL = Path("machinator.toml")
+PRIMARY_PIPELINE_SENTINEL = Path("machinate.toml")
+LEGACY_PIPELINE_SENTINEL = Path("machinator.toml")
+PIPELINE_SENTINELS = (PRIMARY_PIPELINE_SENTINEL, LEGACY_PIPELINE_SENTINEL)
 PROJECT_SENTINEL = Path("pyproject.toml")
 
 
@@ -174,7 +176,7 @@ def find_workspace_root(start: Path | None = None) -> Path | None:
 def find_pipeline_root(start: Path | None = None) -> Path | None:
     current = (start or Path.cwd()).expanduser().resolve()
     for candidate in [current, *current.parents]:
-        if (candidate / PIPELINE_SENTINEL).exists():
+        if any((candidate / sentinel).exists() for sentinel in PIPELINE_SENTINELS):
             return candidate
     return None
 
@@ -213,7 +215,10 @@ def require_pipeline_root(explicit_root: str | None = None) -> Path:
 
     detected = find_pipeline_root()
     if detected is None:
-        raise SystemExit("no Machinator pipeline found from the current directory; run inside a pipeline repo or pass --pipeline-path")
+        raise SystemExit(
+            "no Machinator pipeline found from the current directory; run inside a pipeline repo with `machinate.toml` "
+            "or pass --pipeline-path"
+        )
     return detected
 
 
@@ -424,7 +429,14 @@ def materialize_source(src: str, destination_root: Path, mode: str) -> tuple[Pat
 
 
 def pipeline_config_path(pipeline_root: Path) -> Path:
-    return pipeline_root / PIPELINE_SENTINEL
+    # `machinate.toml` is now the canonical recipe key for a usable pipeline, but
+    # we still fall back to the legacy filename so older local test fixtures do
+    # not break while the repo moves over.
+    for sentinel in PIPELINE_SENTINELS:
+        candidate = pipeline_root / sentinel
+        if candidate.exists():
+            return candidate
+    return pipeline_root / PRIMARY_PIPELINE_SENTINEL
 
 
 def load_pipeline_config(pipeline_root: Path) -> dict[str, Any]:
@@ -463,10 +475,14 @@ def pipeline_paths_from_config(pipeline_root: Path, pipeline_config: dict[str, A
     if not isinstance(raw_paths, dict):
         raw_paths = {}
     source_root = pipeline_root / str(raw_paths.get("source_root", "src"))
-    experiment_root = pipeline_root / str(raw_paths.get("experiments", "configs/experiments"))
+    data_root = pipeline_root / str(raw_paths.get("data_root", "data"))
+    config_root = pipeline_root / str(raw_paths.get("config_root", "config"))
+    experiment_root = pipeline_root / str(raw_paths.get("experiments", "config"))
     output_root = pipeline_root / str(raw_paths.get("outputs", "outputs"))
     return {
         "source_root": source_root,
+        "data_root": data_root,
+        "config_root": config_root,
         "experiment_root": experiment_root,
         "output_root": output_root,
     }
@@ -568,7 +584,16 @@ def build_task_context(
         pipeline_root, pipeline_config, experiment_name
     )
     resolved_dataset_ref, dataset_path = resolve_dataset_path(workspace_root, dataset_ref)
-    output_root = pipeline_paths_from_config(pipeline_root, pipeline_config)["output_root"]
+    resolved_paths = pipeline_paths_from_config(pipeline_root, pipeline_config)
+    if dataset_path is None:
+        # Recipe-centric pipelines keep a local `data/` directory. When the user
+        # has not explicitly selected a workspace asset, default to that local
+        # dataset root so example pipelines are runnable in place.
+        local_data_root = resolved_paths["data_root"]
+        if local_data_root.exists() and any(local_data_root.iterdir()):
+            resolved_dataset_ref = "pipeline-local-data"
+            dataset_path = local_data_root
+    output_root = resolved_paths["output_root"]
     output_root.mkdir(parents=True, exist_ok=True)
     return PipelineTaskContext(
         workspace_root=workspace_root,

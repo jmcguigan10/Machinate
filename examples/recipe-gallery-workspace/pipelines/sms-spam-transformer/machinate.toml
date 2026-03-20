@@ -1,0 +1,65 @@
+[pipeline]
+name = "sms-spam-transformer"
+slug = "sms-spam-transformer"
+type = "nlp"
+template = "native-python"
+package = "sms_spam_transformer"
+
+# BEGIN MACHINATE RECIPE
+[recipe]
+name = "text.binary.transformer"
+family = "transformer_encoder"
+variant = "vanilla"
+modality = "text"
+task = "binary_classification"
+# END MACHINATE RECIPE
+
+[paths]
+source_root = "src"
+data_root = "data"
+config_root = "config"
+experiments = "config"
+outputs = "outputs"
+
+[specs]
+dataset_facts = "dataset_facts.toml"
+model = "model.toml"
+training = "training.toml"
+
+[dataset]
+kind = "text_table"
+target_column = "label"
+
+[tasks.validate]
+entry = "sms_spam_transformer.tasks:validate"
+description = "Validate the experiment configuration"
+requires_dataset = false
+requires_experiment = true
+
+[tasks.audit]
+entry = "sms_spam_transformer.tasks:audit"
+description = "Audit the dataset and write a JSON summary"
+requires_dataset = true
+requires_experiment = true
+
+[tasks.train]
+entry = "sms_spam_transformer.tasks:train"
+description = "Run a demo training task"
+requires_dataset = false
+requires_experiment = true
+
+[tasks.smoke]
+entry = "sms_spam_transformer.tasks:smoke"
+description = "Run validate, audit, and train in sequence"
+requires_dataset = true
+requires_experiment = true
+
+# BEGIN MACHINATE COLLATION
+[collation]
+generated_at = "2026-03-20T12:33:47Z"
+source_report = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/outputs/reports/fixtures/sms-spam-report.json"
+source_dataset = "sms-spam"
+intent_task = "binary_classification"
+recipe = "text.binary.transformer"
+model_family = "transformer_encoder"
+# END MACHINATE COLLATION

@@ -1,0 +1,15 @@
+{
+  "pipeline_name": "penguins-deep-mlp",
+  "pipeline_slug": "penguins-deep-mlp",
+  "repo_path": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/pipelines/penguins-deep-mlp",
+  "pipeline_type": "tabular",
+  "template": "native-python",
+  "created_at": "2026-03-20T12:33:47Z",
+  "pipeline_config_path": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/pipelines/penguins-deep-mlp/machinate.toml",
+  "supported_tasks": [
+    "validate",
+    "audit",
+    "train",
+    "smoke"
+  ]
+}

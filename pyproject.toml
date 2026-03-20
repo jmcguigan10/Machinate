@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "machinator"
-version = "0.4.0"
+version = "0.5.0"
 description = "Prompt-first control-plane CLI for ML workspaces and pipelines"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -58,6 +58,12 @@ pub struct InputSpec {
     pub token_vocab_size: Option<usize>,
     #[serde(default)]
     pub max_sequence_length: Option<usize>,
+    #[serde(default)]
+    pub image_channels: Option<usize>,
+    #[serde(default)]
+    pub image_height: Option<usize>,
+    #[serde(default)]
+    pub image_width: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -70,6 +76,8 @@ pub struct TargetSpec {
 pub struct BackboneSpec {
     #[serde(default)]
     pub hidden_dims: Vec<usize>,
+    #[serde(default)]
+    pub channels: Vec<usize>,
     #[serde(default)]
     pub model_dim: Option<usize>,
     #[serde(default)]
@@ -180,19 +188,22 @@ impl ArchitectureSpec {
     }
 
     pub fn validate(&self) -> Result<(), ValidationError> {
-        if !matches!(self.model.family.as_str(), "tabular_mlp" | "transformer_encoder") {
+        if !matches!(
+            self.model.family.as_str(),
+            "tabular_mlp" | "transformer_encoder" | "vision_cnn" | "vision_resnet"
+        ) {
             return Err(ValidationError::new(format!(
                 "unsupported model family `{}`",
                 self.model.family
             )));
         }
-        if !matches!(self.model.modality.as_str(), "tabular" | "text") {
+        if !matches!(self.model.modality.as_str(), "tabular" | "text" | "vision") {
             return Err(ValidationError::new(format!(
                 "unsupported modality `{}`",
                 self.model.modality
             )));
         }
-        if !matches!(self.input.kind.as_str(), "dense_features" | "token_ids") {
+        if !matches!(self.input.kind.as_str(), "dense_features" | "token_ids" | "image_tensor") {
             return Err(ValidationError::new(format!(
                 "unsupported input kind `{}`",
                 self.input.kind
@@ -363,6 +374,87 @@ impl ArchitectureSpec {
                     )));
                 }
             }
+            "vision_cnn" => {
+                if self.model.modality != "vision" {
+                    return Err(ValidationError::new("vision_cnn requires modality `vision`"));
+                }
+                if self.input.kind != "image_tensor" {
+                    return Err(ValidationError::new("vision_cnn requires input.kind `image_tensor`"));
+                }
+                if self.input.image_channels.unwrap_or(0) == 0 {
+                    return Err(ValidationError::new(
+                        "input.image_channels must be positive for vision_cnn",
+                    ));
+                }
+                if self.input.image_height.unwrap_or(0) == 0 {
+                    return Err(ValidationError::new(
+                        "input.image_height must be positive for vision_cnn",
+                    ));
+                }
+                if self.input.image_width.unwrap_or(0) == 0 {
+                    return Err(ValidationError::new(
+                        "input.image_width must be positive for vision_cnn",
+                    ));
+                }
+                if self.backbone.channels.is_empty() || self.backbone.channels.iter().any(|value| *value == 0) {
+                    return Err(ValidationError::new(
+                        "backbone.channels must contain one or more positive integers for vision_cnn",
+                    ));
+                }
+                if !matches!(self.backbone.normalization.as_str(), "none" | "batchnorm") {
+                    return Err(ValidationError::new(
+                        "vision_cnn supports only `none` or `batchnorm` normalization",
+                    ));
+                }
+                if self.head.pooling.as_deref().unwrap_or("avg") != "avg" {
+                    return Err(ValidationError::new(
+                        "vision_cnn currently supports only `avg` pooling",
+                    ));
+                }
+            }
+            "vision_resnet" => {
+                if self.model.modality != "vision" {
+                    return Err(ValidationError::new("vision_resnet requires modality `vision`"));
+                }
+                if self.input.kind != "image_tensor" {
+                    return Err(ValidationError::new("vision_resnet requires input.kind `image_tensor`"));
+                }
+                if self.input.image_channels.unwrap_or(0) == 0 {
+                    return Err(ValidationError::new(
+                        "input.image_channels must be positive for vision_resnet",
+                    ));
+                }
+                if self.input.image_height.unwrap_or(0) == 0 {
+                    return Err(ValidationError::new(
+                        "input.image_height must be positive for vision_resnet",
+                    ));
+                }
+                if self.input.image_width.unwrap_or(0) == 0 {
+                    return Err(ValidationError::new(
+                        "input.image_width must be positive for vision_resnet",
+                    ));
+                }
+                if self.backbone.channels.is_empty() || self.backbone.channels.iter().any(|value| *value == 0) {
+                    return Err(ValidationError::new(
+                        "backbone.channels must contain one or more positive integers for vision_resnet",
+                    ));
+                }
+                if self.backbone.num_layers.unwrap_or(0) == 0 {
+                    return Err(ValidationError::new(
+                        "backbone.num_layers must be positive for vision_resnet",
+                    ));
+                }
+                if !matches!(self.backbone.normalization.as_str(), "none" | "batchnorm") {
+                    return Err(ValidationError::new(
+                        "vision_resnet supports only `none` or `batchnorm` normalization",
+                    ));
+                }
+                if self.head.pooling.as_deref().unwrap_or("avg") != "avg" {
+                    return Err(ValidationError::new(
+                        "vision_resnet currently supports only `avg` pooling",
+                    ));
+                }
+            }
             _ => {}
         }
 
@@ -407,6 +499,56 @@ impl ArchitectureSpec {
                     total += model_dim * 4;
                 }
                 total += model_dim * self.head.output_dim;
+                total += self.head.output_dim;
+                total
+            }
+            "vision_cnn" => {
+                let mut total = 0_usize;
+                let mut in_channels = self.input.image_channels.unwrap_or(0);
+                for out_channels in &self.backbone.channels {
+                    total += out_channels * in_channels * 3 * 3;
+                    total += out_channels;
+                    if self.backbone.normalization != "none" {
+                        total += out_channels * 2;
+                    }
+                    in_channels = *out_channels;
+                }
+                total += in_channels * self.head.output_dim;
+                total += self.head.output_dim;
+                total
+            }
+            "vision_resnet" => {
+                let mut total = 0_usize;
+                let mut in_channels = self.input.image_channels.unwrap_or(0);
+                let blocks_per_stage = self.backbone.num_layers.unwrap_or(0);
+                let stem_channels = *self.backbone.channels.first().unwrap_or(&0);
+                total += stem_channels * in_channels * 3 * 3;
+                total += stem_channels;
+                if self.backbone.normalization != "none" {
+                    total += stem_channels * 2;
+                }
+                in_channels = stem_channels;
+                for stage_channels in &self.backbone.channels {
+                    for _block_index in 0..blocks_per_stage {
+                        let projection = in_channels != *stage_channels;
+                        total += stage_channels * in_channels * 3 * 3;
+                        total += stage_channels;
+                        total += stage_channels * stage_channels * 3 * 3;
+                        total += stage_channels;
+                        if self.backbone.normalization != "none" {
+                            total += stage_channels * 4;
+                        }
+                        if projection {
+                            total += stage_channels * in_channels;
+                            total += stage_channels;
+                            if self.backbone.normalization != "none" {
+                                total += stage_channels * 2;
+                            }
+                        }
+                        in_channels = *stage_channels;
+                    }
+                }
+                total += in_channels * self.head.output_dim;
                 total += self.head.output_dim;
                 total
             }
@@ -571,6 +713,179 @@ impl ArchitectureSpec {
                     dtype: "float32".to_string(),
                 });
             }
+            "vision_cnn" => {
+                let mut in_channels = self.input.image_channels.unwrap_or(0);
+                for (layer_index, out_channels) in self.backbone.channels.iter().enumerate() {
+                    parameters.push(ParameterBinding {
+                        tensor_key: format!("convs.{}.weight", layer_index),
+                        owner_id: format!("backbone.conv.{}", layer_index),
+                        shape: vec![*out_channels, in_channels, 3, 3],
+                        dtype: "float32".to_string(),
+                    });
+                    parameters.push(ParameterBinding {
+                        tensor_key: format!("convs.{}.bias", layer_index),
+                        owner_id: format!("backbone.conv.{}", layer_index),
+                        shape: vec![*out_channels],
+                        dtype: "float32".to_string(),
+                    });
+                    if self.backbone.normalization != "none" {
+                        parameters.push(ParameterBinding {
+                            tensor_key: format!("norms.{}.weight", layer_index),
+                            owner_id: format!("backbone.norm.{}", layer_index),
+                            shape: vec![*out_channels],
+                            dtype: "float32".to_string(),
+                        });
+                        parameters.push(ParameterBinding {
+                            tensor_key: format!("norms.{}.bias", layer_index),
+                            owner_id: format!("backbone.norm.{}", layer_index),
+                            shape: vec![*out_channels],
+                            dtype: "float32".to_string(),
+                        });
+                    }
+                    in_channels = *out_channels;
+                }
+                parameters.push(ParameterBinding {
+                    tensor_key: "head.weight".to_string(),
+                    owner_id: "head".to_string(),
+                    shape: vec![self.head.output_dim, in_channels],
+                    dtype: "float32".to_string(),
+                });
+                parameters.push(ParameterBinding {
+                    tensor_key: "head.bias".to_string(),
+                    owner_id: "head".to_string(),
+                    shape: vec![self.head.output_dim],
+                    dtype: "float32".to_string(),
+                });
+            }
+            "vision_resnet" => {
+                let mut in_channels = self.input.image_channels.unwrap_or(0);
+                let stem_channels = *self.backbone.channels.first().unwrap_or(&0);
+                let blocks_per_stage = self.backbone.num_layers.unwrap_or(0);
+                parameters.push(ParameterBinding {
+                    tensor_key: "stem.weight".to_string(),
+                    owner_id: "stem".to_string(),
+                    shape: vec![stem_channels, in_channels, 3, 3],
+                    dtype: "float32".to_string(),
+                });
+                parameters.push(ParameterBinding {
+                    tensor_key: "stem.bias".to_string(),
+                    owner_id: "stem".to_string(),
+                    shape: vec![stem_channels],
+                    dtype: "float32".to_string(),
+                });
+                if self.backbone.normalization != "none" {
+                    parameters.push(ParameterBinding {
+                        tensor_key: "stem_norm.weight".to_string(),
+                        owner_id: "stem_norm".to_string(),
+                        shape: vec![stem_channels],
+                        dtype: "float32".to_string(),
+                    });
+                    parameters.push(ParameterBinding {
+                        tensor_key: "stem_norm.bias".to_string(),
+                        owner_id: "stem_norm".to_string(),
+                        shape: vec![stem_channels],
+                        dtype: "float32".to_string(),
+                    });
+                }
+                in_channels = stem_channels;
+                for (stage_index, stage_channels) in self.backbone.channels.iter().enumerate() {
+                    for block_index in 0..blocks_per_stage {
+                        let prefix = format!("stages.{}.{}", stage_index, block_index);
+                        let owner_prefix = format!("backbone.stage.{}.block.{}", stage_index, block_index);
+                        parameters.push(ParameterBinding {
+                            tensor_key: format!("{}.conv1.weight", prefix),
+                            owner_id: format!("{}.conv1", owner_prefix),
+                            shape: vec![*stage_channels, in_channels, 3, 3],
+                            dtype: "float32".to_string(),
+                        });
+                        parameters.push(ParameterBinding {
+                            tensor_key: format!("{}.conv1.bias", prefix),
+                            owner_id: format!("{}.conv1", owner_prefix),
+                            shape: vec![*stage_channels],
+                            dtype: "float32".to_string(),
+                        });
+                        parameters.push(ParameterBinding {
+                            tensor_key: format!("{}.conv2.weight", prefix),
+                            owner_id: format!("{}.conv2", owner_prefix),
+                            shape: vec![*stage_channels, *stage_channels, 3, 3],
+                            dtype: "float32".to_string(),
+                        });
+                        parameters.push(ParameterBinding {
+                            tensor_key: format!("{}.conv2.bias", prefix),
+                            owner_id: format!("{}.conv2", owner_prefix),
+                            shape: vec![*stage_channels],
+                            dtype: "float32".to_string(),
+                        });
+                        if self.backbone.normalization != "none" {
+                            parameters.push(ParameterBinding {
+                                tensor_key: format!("{}.norm1.weight", prefix),
+                                owner_id: format!("{}.norm1", owner_prefix),
+                                shape: vec![*stage_channels],
+                                dtype: "float32".to_string(),
+                            });
+                            parameters.push(ParameterBinding {
+                                tensor_key: format!("{}.norm1.bias", prefix),
+                                owner_id: format!("{}.norm1", owner_prefix),
+                                shape: vec![*stage_channels],
+                                dtype: "float32".to_string(),
+                            });
+                            parameters.push(ParameterBinding {
+                                tensor_key: format!("{}.norm2.weight", prefix),
+                                owner_id: format!("{}.norm2", owner_prefix),
+                                shape: vec![*stage_channels],
+                                dtype: "float32".to_string(),
+                            });
+                            parameters.push(ParameterBinding {
+                                tensor_key: format!("{}.norm2.bias", prefix),
+                                owner_id: format!("{}.norm2", owner_prefix),
+                                shape: vec![*stage_channels],
+                                dtype: "float32".to_string(),
+                            });
+                        }
+                        if in_channels != *stage_channels {
+                            parameters.push(ParameterBinding {
+                                tensor_key: format!("{}.proj.weight", prefix),
+                                owner_id: format!("{}.proj", owner_prefix),
+                                shape: vec![*stage_channels, in_channels, 1, 1],
+                                dtype: "float32".to_string(),
+                            });
+                            parameters.push(ParameterBinding {
+                                tensor_key: format!("{}.proj.bias", prefix),
+                                owner_id: format!("{}.proj", owner_prefix),
+                                shape: vec![*stage_channels],
+                                dtype: "float32".to_string(),
+                            });
+                            if self.backbone.normalization != "none" {
+                                parameters.push(ParameterBinding {
+                                    tensor_key: format!("{}.proj_norm.weight", prefix),
+                                    owner_id: format!("{}.proj_norm", owner_prefix),
+                                    shape: vec![*stage_channels],
+                                    dtype: "float32".to_string(),
+                                });
+                                parameters.push(ParameterBinding {
+                                    tensor_key: format!("{}.proj_norm.bias", prefix),
+                                    owner_id: format!("{}.proj_norm", owner_prefix),
+                                    shape: vec![*stage_channels],
+                                    dtype: "float32".to_string(),
+                                });
+                            }
+                        }
+                        in_channels = *stage_channels;
+                    }
+                }
+                parameters.push(ParameterBinding {
+                    tensor_key: "head.weight".to_string(),
+                    owner_id: "head".to_string(),
+                    shape: vec![self.head.output_dim, in_channels],
+                    dtype: "float32".to_string(),
+                });
+                parameters.push(ParameterBinding {
+                    tensor_key: "head.bias".to_string(),
+                    owner_id: "head".to_string(),
+                    shape: vec![self.head.output_dim],
+                    dtype: "float32".to_string(),
+                });
+            }
             _ => {}
         }
 
@@ -635,6 +950,24 @@ impl ArchitectureSpec {
         );
         track_change(
             &mut changes,
+            "image_channels",
+            json!(self.input.image_channels),
+            json!(other.input.image_channels),
+        );
+        track_change(
+            &mut changes,
+            "image_height",
+            json!(self.input.image_height),
+            json!(other.input.image_height),
+        );
+        track_change(
+            &mut changes,
+            "image_width",
+            json!(self.input.image_width),
+            json!(other.input.image_width),
+        );
+        track_change(
+            &mut changes,
             "target_column",
             json!(self.target.column),
             json!(other.target.column),
@@ -644,6 +977,12 @@ impl ArchitectureSpec {
             "hidden_dims",
             json!(self.backbone.hidden_dims),
             json!(other.backbone.hidden_dims),
+        );
+        track_change(
+            &mut changes,
+            "conv_channels",
+            json!(self.backbone.channels),
+            json!(other.backbone.channels),
         );
         track_change(
             &mut changes,
@@ -894,6 +1233,89 @@ format = "safetensors"
 root_key = "demo_text_model"
 "#;
 
+    const VISION_CNN_SPEC: &str = r#"
+[model]
+name = "demo-vision"
+family = "vision_cnn"
+task = "binary_classification"
+modality = "vision"
+
+[input]
+kind = "image_tensor"
+image_channels = 1
+image_height = 28
+image_width = 28
+
+[target]
+column = "label"
+kind = "binary"
+
+[backbone]
+channels = [32, 64, 128]
+activation = "relu"
+normalization = "batchnorm"
+dropout = 0.1
+
+[head]
+output_dim = 1
+pooling = "avg"
+
+[procedures.forward]
+input = "features"
+output = "logits"
+
+[procedures.loss]
+kind = "bce_with_logits"
+prediction = "logits"
+target = "target"
+
+[param_store]
+format = "safetensors"
+root_key = "demo_vision_model"
+"#;
+
+    const VISION_RESNET_SPEC: &str = r#"
+[model]
+name = "demo-resnet"
+family = "vision_resnet"
+task = "binary_classification"
+modality = "vision"
+
+[input]
+kind = "image_tensor"
+image_channels = 1
+image_height = 28
+image_width = 28
+
+[target]
+column = "label"
+kind = "binary"
+
+[backbone]
+channels = [32, 64, 128]
+num_layers = 2
+activation = "relu"
+normalization = "batchnorm"
+dropout = 0.1
+
+[head]
+output_dim = 1
+pooling = "avg"
+
+[procedures.forward]
+input = "features"
+output = "logits"
+
+[procedures.loss]
+kind = "bce_with_logits"
+prediction = "logits"
+target = "target"
+
+[param_store]
+format = "safetensors"
+root_key = "demo_resnet_model"
+"#;
+
     #[test]
     fn valid_tabular_spec_parses_and_validates() {
         let spec = ArchitectureSpec::from_toml_str(TABULAR_SPEC).unwrap();
@@ -911,6 +1333,21 @@ root_key = "demo_text_model"
         assert!(spec.parameter_count() > 0);
         let manifest = spec.param_store_manifest();
         assert_eq!(manifest.parameters[0].tensor_key, "token_embedding.weight");
+    }
+
+    #[test]
+    fn valid_vision_specs_parse_and_validate() {
+        let cnn_spec = ArchitectureSpec::from_toml_str(VISION_CNN_SPEC).unwrap();
+        cnn_spec.validate().unwrap();
+        assert!(cnn_spec.parameter_count() > 0);
+        let cnn_manifest = cnn_spec.param_store_manifest();
+        assert_eq!(cnn_manifest.parameters[0].tensor_key, "convs.0.weight");
+
+        let resnet_spec = ArchitectureSpec::from_toml_str(VISION_RESNET_SPEC).unwrap();
+        resnet_spec.validate().unwrap();
+        assert!(resnet_spec.parameter_count() > cnn_spec.parameter_count());
+        let resnet_manifest = resnet_spec.param_store_manifest();
+        assert_eq!(resnet_manifest.parameters[0].tensor_key, "stem.weight");
     }
 
     #[test]

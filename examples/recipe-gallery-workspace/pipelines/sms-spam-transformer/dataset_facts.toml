@@ -1,0 +1,18 @@
+[dataset]
+name = "sms-spam"
+path = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/sms-spam/sms_spam.csv"
+modality = "text"
+suspected_problem_type = "binary classification"
+row_count_estimate = 5574
+row_count_estimate_known = true
+
+[columns]
+names = ["text", "label"]
+feature_names = ["text"]
+target_column = "label"
+target_candidates = ["label"]
+id_candidates = []
+time_candidates = []
+
+[source]
+report_path = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/outputs/reports/fixtures/sms-spam-report.json"

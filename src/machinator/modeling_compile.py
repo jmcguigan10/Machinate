@@ -28,6 +28,12 @@ def _activation_expr(name: str) -> str:
     return mapping[name]
 
 
+def _vision_norm_expr(normalization: str, channels_expr: str) -> str:
+    if normalization == "batchnorm":
+        return f"nn.BatchNorm2d({channels_expr})"
+    return "nn.Identity()"
+
+
 def render_compiled_model_python(spec: ArchitectureSpec) -> str:
     # This renderer is intentionally dumb and deterministic. The compiled file
     # is a runtime artifact derived from the spec, not a hand-maintained source
@@ -130,6 +136,129 @@ class {spec.class_name}(nn.Module):
 
 
 __all__ = [{json.dumps(spec.class_name)}]
+'''
+
+    if spec.family == "vision_cnn":
+        assert spec.image_channels is not None
+        dropout_block = ""
+        if spec.dropout > 0.0:
+            dropout_block = "            x = F.dropout(x, p=self.dropout, training=self.training)\\n"
+        return f'''from __future__ import annotations
+
+import torch
+from torch import nn
+import torch.nn.functional as F
+
+
+class {spec.class_name}(nn.Module):
+    family = {json.dumps(spec.family)}
+    task = {json.dumps(spec.task)}
+    target_column = {json.dumps(spec.target_column)}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.input_shape = ({spec.image_channels}, {spec.image_height}, {spec.image_width})
+        self.channels = {json.dumps(spec.conv_channels)}
+        self.dropout = {spec.dropout}
+        self.convs = nn.ModuleList()
+        self.norms = nn.ModuleList()
+        in_channels = {spec.image_channels}
+        for out_channels in self.channels:
+            self.convs.append(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1))
+            self.norms.append({_vision_norm_expr(spec.normalization, "out_channels")})
+            in_channels = out_channels
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.head = nn.Linear(in_channels, {spec.head_output_dim})
+
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        x = features
+        for conv, norm in zip(self.convs, self.norms):
+            x = conv(x)
+            x = norm(x)
+            x = {_activation_expr(spec.activation)}(x)
+{dropout_block}            x = F.max_pool2d(x, kernel_size=2, ceil_mode=True)
+        pooled = self.pool(x).flatten(1)
+        logits = self.head(pooled)
+        return logits
+
+
+__all__ = [{json.dumps(spec.class_name)}]
+'''
+
+    if spec.family == "vision_resnet":
+        assert spec.image_channels is not None
+        assert spec.num_layers is not None
+        return f'''from __future__ import annotations
+
+import torch
+from torch import nn
+import torch.nn.functional as F
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, *, dropout: float) -> None:
+        super().__init__()
+        self.dropout = dropout
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.norm1 = {_vision_norm_expr(spec.normalization, "out_channels")}
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.norm2 = {_vision_norm_expr(spec.normalization, "out_channels")}
+        self.proj = None if in_channels == out_channels else nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.proj_norm = nn.Identity() if self.proj is None else {_vision_norm_expr(spec.normalization, "out_channels")}
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        residual = inputs
+        x = self.conv1(inputs)
+        x = self.norm1(x)
+        x = {_activation_expr(spec.activation)}(x)
+        if self.dropout > 0.0:
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.conv2(x)
+        x = self.norm2(x)
+        if self.proj is not None:
+            residual = self.proj_norm(self.proj(residual))
+        x = {_activation_expr(spec.activation)}(x + residual)
+        return x
+
+
+class {spec.class_name}(nn.Module):
+    family = {json.dumps(spec.family)}
+    task = {json.dumps(spec.task)}
+    target_column = {json.dumps(spec.target_column)}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.input_shape = ({spec.image_channels}, {spec.image_height}, {spec.image_width})
+        self.channels = {json.dumps(spec.conv_channels)}
+        self.blocks_per_stage = {spec.num_layers}
+        self.dropout = {spec.dropout}
+        self.stem = nn.Conv2d({spec.image_channels}, self.channels[0], kernel_size=3, padding=1)
+        self.stem_norm = {_vision_norm_expr(spec.normalization, "self.channels[0]")}
+        self.stages = nn.ModuleList()
+        in_channels = self.channels[0]
+        for stage_channels in self.channels:
+            blocks = []
+            for _block_index in range(self.blocks_per_stage):
+                blocks.append(ResidualBlock(in_channels, stage_channels, dropout=self.dropout))
+                in_channels = stage_channels
+            self.stages.append(nn.Sequential(*blocks))
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.head = nn.Linear(in_channels, {spec.head_output_dim})
+
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        x = self.stem(features)
+        x = self.stem_norm(x)
+        x = {_activation_expr(spec.activation)}(x)
+        for stage_index, stage in enumerate(self.stages):
+            x = stage(x)
+            if stage_index < len(self.stages) - 1:
+                x = F.max_pool2d(x, kernel_size=2, ceil_mode=True)
+        pooled = self.pool(x).flatten(1)
+        logits = self.head(pooled)
+        return logits
+
+
+__all__ = [{json.dumps(spec.class_name)}, "ResidualBlock"]
 '''
 
     raise ModelSpecError(f"unsupported model family `{spec.family}`")

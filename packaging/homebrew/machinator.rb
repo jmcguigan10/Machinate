@@ -3,8 +3,8 @@ class Machinator < Formula
 
   desc "Prompt-first control-plane CLI for ML workspaces and pipelines"
   homepage "https://github.com/jmcguigan10/Machinator"
-  url "https://github.com/jmcguigan10/Machinator/releases/download/v0.4.0/machinator-0.4.0.tar.gz"
-  sha256 "e698528d4d1132856f632e612a967e1358559e0a765f5374a6e5c8c10222ee1a"
+  url "https://github.com/jmcguigan10/Machinator/releases/download/v0.5.0/machinator-0.5.0.tar.gz"
+  sha256 "4abd3c85ac1de8b2af78371d4ea6a0fb6df4bea440dab27549223c23598b8d8b"
   license "MIT"
 
   depends_on "python@3.12"
