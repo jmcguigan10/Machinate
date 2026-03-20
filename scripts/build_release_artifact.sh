@@ -15,7 +15,7 @@ print(match.group(1))
 PY
 )"
 DIST_DIR="${ROOT}/dist"
-ARTIFACT="${DIST_DIR}/machinate-${VERSION}.tar.gz"
+ARTIFACT="${DIST_DIR}/machinator-${VERSION}.tar.gz"
 
 mkdir -p "${DIST_DIR}"
 rm -f "${ARTIFACT}"

@@ -3,8 +3,8 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "machinate"
-version = "0.3.0"
+name = "machinator"
+version = "0.4.0"
 description = "Prompt-first control-plane CLI for ML workspaces and pipelines"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,13 +29,13 @@ classifiers = [
 ]
 
 [project.scripts]
-macht = "machinate.cli:main"
+macht = "machinator.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-machinate = ["js/*.mjs", "guides/*.md"]
+machinator = ["js/*.mjs", "guides/*.md"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

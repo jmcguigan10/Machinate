@@ -1,0 +1,35 @@
+from __future__ import annotations
+
+import argparse
+
+from machinator import __version__
+from machinator.commands import check, collate, doctor, grab, guide, legate, model, new, run, task, test, workspace
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="macht",
+        description="Machinator: prompt-first control-plane CLI for ML workspaces and pipelines",
+    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    check.register(subparsers)
+    doctor.register(subparsers)
+    guide.register(subparsers)
+    test.register(subparsers)
+    workspace.register(subparsers)
+    new.register(subparsers)
+    grab.register(subparsers)
+    collate.register(subparsers)
+    legate.register(subparsers)
+    model.register(subparsers)
+    task.register(subparsers)
+    run.register(subparsers)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    return args.func(args)

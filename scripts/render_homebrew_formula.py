@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 DEFAULT_OWNER = "jmcguigan10"
-DEFAULT_APP_REPO = "Machinate"
+DEFAULT_APP_REPO = "Machinator"
 
 
 def project_root() -> Path:
@@ -33,9 +33,9 @@ def sha256_file(path: Path) -> str:
 
 
 def formula_text(*, owner: str, app_repo: str, version: str, sha256: str) -> str:
-    url = f"https://github.com/{owner}/{app_repo}/releases/download/v{version}/machinate-{version}.tar.gz"
+    url = f"https://github.com/{owner}/{app_repo}/releases/download/v{version}/machinator-{version}.tar.gz"
     homepage = f"https://github.com/{owner}/{app_repo}"
-    return f"""class Machinate < Formula
+    return f"""class Machinator < Formula
   include Language::Python::Virtualenv
 
   desc "Prompt-first control-plane CLI for ML workspaces and pipelines"
@@ -51,19 +51,19 @@ def formula_text(*, owner: str, app_repo: str, version: str, sha256: str) -> str
   end
 
   test do
-    assert_match "Machinate", shell_output("#{{bin}}/macht --help")
+    assert_match "Machinator", shell_output("#{{bin}}/macht --help")
   end
 end
 """
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Render a Homebrew formula for Machinate")
+    parser = argparse.ArgumentParser(description="Render a Homebrew formula for Machinator")
     parser.add_argument("--owner", default=DEFAULT_OWNER, help="GitHub owner or org")
     parser.add_argument("--app-repo", default=DEFAULT_APP_REPO, help="GitHub app repository name")
     parser.add_argument(
         "--tap-formula",
-        default=str(Path("/Users/johnny/Projects/homebrew-tap/Formula/machinate.rb")),
+        default=str(Path("/Users/johnny/Projects/homebrew-tap/Formula/machinator.rb")),
         help="Path to the tap formula file to write",
     )
     args = parser.parse_args(argv)
@@ -71,14 +71,14 @@ def main(argv: list[str] | None = None) -> int:
     root = project_root()
     pyproject_path = root / "pyproject.toml"
     version = read_version(pyproject_path)
-    artifact_path = root / "dist" / f"machinate-{version}.tar.gz"
+    artifact_path = root / "dist" / f"machinator-{version}.tar.gz"
     if not artifact_path.exists():
         raise SystemExit(f"Release artifact is missing: {artifact_path}")
 
     sha256 = sha256_file(artifact_path)
     rendered = formula_text(owner=args.owner, app_repo=args.app_repo, version=version, sha256=sha256)
 
-    app_formula_path = root / "packaging" / "homebrew" / "machinate.rb"
+    app_formula_path = root / "packaging" / "homebrew" / "machinator.rb"
     app_formula_path.write_text(rendered)
 
     tap_formula_path = Path(args.tap_formula).expanduser().resolve()

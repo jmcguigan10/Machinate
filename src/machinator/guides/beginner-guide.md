@@ -2,13 +2,6 @@
 
 This guide is for the first time you sit down with `macht` and want to understand what you are supposed to do, in what order, and why.
 
-You can read this guide from the CLI too:
-
-```bash
-macht guide beginner
-macht guide workflow
-```
-
 Machinator is not a normal ML repo template generator. It is a control plane for ML work:
 
 - you install one global CLI: `macht`
