@@ -50,6 +50,11 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     report_parser.add_argument("--dataset", help="Dataset asset id or local path")
     report_parser.add_argument("--notes", help="Plain-English notes to hand to the agent")
     report_parser.add_argument("--notes-file", help="Read notes from a local text or markdown file")
+    report_parser.add_argument(
+        "--notes-prompt",
+        action="store_true",
+        help="Prompt interactively for optional plain-English notes before delegating",
+    )
     report_parser.add_argument("--model", help="Optional Codex model override")
     report_parser.add_argument(
         "--sandbox",
@@ -106,8 +111,9 @@ def resolve_dataset_argument(args: argparse.Namespace, workspace_root: Path) -> 
 def resolve_notes(args: argparse.Namespace) -> str:
     inline_notes = clean_optional(args.notes)
     notes_file = clean_optional(args.notes_file)
-    if inline_notes is not None and notes_file is not None:
-        raise SystemExit("pass either --notes or --notes-file, not both")
+    note_source_count = sum(value is not None for value in [inline_notes, notes_file]) + int(bool(args.notes_prompt))
+    if note_source_count > 1:
+        raise SystemExit("pass only one of --notes, --notes-file, or --notes-prompt")
 
     if notes_file is not None:
         notes_path = Path(notes_file).expanduser().resolve()
@@ -118,8 +124,13 @@ def resolve_notes(args: argparse.Namespace) -> str:
     if inline_notes is not None:
         return inline_notes
 
-    if can_prompt_interactively():
-        return prompt_multiline("Describe everything you know about this data.")
+    if args.notes_prompt:
+        if not can_prompt_interactively():
+            raise SystemExit("`--notes-prompt` requires an interactive terminal")
+        return prompt_multiline(
+            "Optional operator notes for the delegated agent. "
+            "Press Enter twice to continue without extra notes."
+        )
 
     return ""
 
@@ -178,6 +189,7 @@ def data_report_schema() -> dict[str, object]:
                             "target_candidates",
                             "id_candidates",
                             "time_candidates",
+                            "image",
                         ],
                         "properties": {
                             "format": {"type": "string"},
@@ -367,6 +379,12 @@ def cmd_report(args: argparse.Namespace) -> int:
         user_notes=user_notes,
     )
     prompt_path.write_text(prompt)
+
+    print("starting delegated report")
+    print(f"provider: {args.provider}")
+    print(f"dataset: {dataset_ref}")
+    print(f"notes: {'provided' if user_notes else 'none'}")
+    print(f"sandbox: {args.sandbox}")
 
     with tempfile.TemporaryDirectory(prefix="machinator-legate-") as tempdir:
         temp_root = Path(tempdir)

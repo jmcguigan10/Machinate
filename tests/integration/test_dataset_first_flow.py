@@ -24,6 +24,9 @@ class DatasetFirstFlowTests(unittest.TestCase):
             report_path.write_text(
                 json.dumps(
                     {
+                        "generated_at": "2026-03-20T12:00:00Z",
+                        "delegate_kind": "report",
+                        "report_kind": "data",
                         "report": {
                             "dataset_name": "demo-dataset",
                             "dataset_path": str(dataset_path),
@@ -58,8 +61,6 @@ class DatasetFirstFlowTests(unittest.TestCase):
                         "--workspace",
                         str(workspace),
                         "--create",
-                        "--report",
-                        str(report_path),
                         "--name",
                         "demo-pipeline",
                     ]

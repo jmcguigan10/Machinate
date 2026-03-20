@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from machinator.commands.task import resolve_selected_pipeline
 from machinator.commands.new import (
@@ -12,7 +14,15 @@ from machinator.commands.new import (
     create_pipeline_scaffold,
     selected_tasks,
 )
-from machinator.core import clean_optional, load_pipeline_config, now_utc, require_workspace_root, slugify
+from machinator.core import (
+    clean_optional,
+    load_json,
+    load_pipeline_config,
+    now_utc,
+    require_workspace_root,
+    slugify,
+    workspace_paths,
+)
 from machinator.modeling_collation import (
     architecture_spec_from_dataset_facts,
     dataset_facts_from_report_path,
@@ -29,6 +39,18 @@ from machinator.ui import MenuChoice, can_prompt_interactively, prompt_select, p
 COLLATION_BEGIN = "# BEGIN MACHINATE COLLATION"
 COLLATION_END = "# END MACHINATE COLLATION"
 INTENT_TASK_CHOICES = [MenuChoice("binary classification", "binary_classification")]
+
+
+@dataclass(frozen=True)
+class ReportCandidate:
+    path: Path
+    dataset_name: str
+    generated_at: str
+
+    @property
+    def label(self) -> str:
+        stamp = self.generated_at or "unknown time"
+        return f"{self.dataset_name} ({stamp}) [{self.path.name}]"
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -54,20 +76,73 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     pipeline_parser.set_defaults(func=cmd_collate_pipeline)
 
 
-def resolve_report_path(report_text: str | None) -> Path:
+def _report_candidate_from_payload(path: Path, payload: dict[str, Any]) -> ReportCandidate | None:
+    # Only completed delegated data-report artifacts should be auto-discovered.
+    if str(payload.get("delegate_kind", "")) != "report":
+        return None
+    if str(payload.get("report_kind", "")) != "data":
+        return None
+
+    report_payload = payload.get("report")
+    if not isinstance(report_payload, dict):
+        return None
+
+    dataset_name = clean_optional(str(report_payload.get("dataset_name", ""))) or path.stem
+    generated_at = clean_optional(str(payload.get("generated_at", ""))) or ""
+    return ReportCandidate(path=path, dataset_name=dataset_name, generated_at=generated_at)
+
+
+def discover_report_candidates(workspace_root: Path) -> list[ReportCandidate]:
+    report_root = workspace_paths(workspace_root).output_root / "reports" / "legate"
+    if not report_root.exists():
+        return []
+
+    candidates: list[ReportCandidate] = []
+    for report_path in report_root.glob("*.json"):
+        try:
+            payload = load_json(report_path)
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        candidate = _report_candidate_from_payload(report_path.resolve(), payload)
+        if candidate is not None:
+            candidates.append(candidate)
+
+    return sorted(candidates, key=lambda item: (item.generated_at, item.path.name), reverse=True)
+
+
+def resolve_report_path(report_text: str | None, *, workspace_root: Path) -> Path:
     if report_text:
         report_path = Path(report_text).expanduser().resolve()
         if not report_path.exists():
             raise SystemExit(f"delegated report does not exist: {report_path}")
         return report_path
 
-    if can_prompt_interactively():
-        report_path = Path(prompt_text("Path to delegated report JSON")).expanduser().resolve()
-        if not report_path.exists():
-            raise SystemExit(f"delegated report does not exist: {report_path}")
-        return report_path
+    candidates = discover_report_candidates(workspace_root)
+    if not candidates:
+        if can_prompt_interactively():
+            report_path = Path(prompt_text("Path to delegated report JSON")).expanduser().resolve()
+            if not report_path.exists():
+                raise SystemExit(f"delegated report does not exist: {report_path}")
+            return report_path
+        raise SystemExit(
+            "no compatible delegated data reports found in this workspace; "
+            "run `macht legate report --data` or pass --report"
+        )
 
-    raise SystemExit("delegated report is required; pass --report")
+    if len(candidates) == 1 or not can_prompt_interactively():
+        return candidates[0].path
+
+    # When there are several reports, let the operator choose instead of
+    # forcing them to paste a path back into the CLI.
+    selected = prompt_select(
+        "Select the delegated report to collate",
+        [MenuChoice(candidate.label, str(candidate.path)) for candidate in candidates],
+        default=str(candidates[0].path),
+        use_search_filter=len(candidates) > 8,
+    )
+    return Path(selected)
 
 
 def write_if_allowed(path: Path, content: str, *, force: bool) -> None:
@@ -299,7 +374,8 @@ def upsert_collation_block(
 
 
 def cmd_collate_pipeline(args: argparse.Namespace) -> int:
-    report_path = resolve_report_path(clean_optional(args.report))
+    workspace_root = require_workspace_root(args.workspace)
+    report_path = resolve_report_path(clean_optional(args.report), workspace_root=workspace_root)
     facts = dataset_facts_from_report_path(report_path)
     pipeline_root, _workspace_root = resolve_or_create_pipeline(
         args,

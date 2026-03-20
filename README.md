@@ -9,7 +9,7 @@ macht workspace init
 macht guide beginner
 macht grab data
 macht legate report --data --dataset demo-dataset
-macht collate pipeline --create --report outputs/reports/legate/report.json
+macht collate pipeline --create
 macht model validate
 macht model edit --set 'hidden_dims=[256,64]' --output model.v2.toml
 macht model diff --new model.v2.toml
@@ -86,6 +86,7 @@ Delegate a structured data report to Codex CLI:
 ```bash
 macht legate report --data --dataset demo-dataset
 macht legate report --data --dataset demo-dataset --notes "This came from a churn export and may contain leakage."
+macht legate report --data --dataset demo-dataset --notes-prompt
 ```
 
 The `legate` flow is intentionally native to Machinator:
@@ -98,6 +99,9 @@ The `legate` flow is intentionally native to Machinator:
 Collate a spec-first model pipeline from a delegated data report:
 
 ```bash
+macht collate pipeline --create
+
+# scripted use can still pin an explicit report path
 macht collate pipeline --create --report /path/to/outputs/reports/legate/report.json
 cd pipelines/demo-pipeline
 macht task list
@@ -108,7 +112,7 @@ macht model compile
 macht run train --experiment baseline --dataset /path/to/data.csv
 ```
 
-`macht collate pipeline --create` is now the preferred dataset-first path. It can create the pipeline scaffold directly from the delegated report, prompt for missing intent in interactive mode, select a recipe, write `dataset_facts.toml`, `model.toml`, and `training.toml`, and append the selected recipe metadata back into `machinate.toml`.
+`macht collate pipeline --create` is now the preferred dataset-first path. If `--report` is omitted, Machinator uses the latest compatible delegated data report from the active workspace and prompts only when multiple candidates exist. It can create the pipeline scaffold directly from the delegated report, prompt for missing intent in interactive mode, select a recipe, write `dataset_facts.toml`, `model.toml`, and `training.toml`, and append the selected recipe metadata back into `machinate.toml`.
 
 `macht new pipeline` still exists, but it is now the manual/advanced escape hatch when you intentionally want to scaffold a pipeline before report-driven collation.
 

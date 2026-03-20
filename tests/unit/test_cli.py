@@ -3,9 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from machinator.cli import build_parser
-from machinator.commands.legate import data_report_schema
+from machinator.commands.collate import discover_report_candidates
+from machinator.commands.legate import data_report_schema, resolve_notes
 from machinator.core import is_url, slugify, write_json
 from machinator.modeling import (
     DatasetFacts,
@@ -66,12 +68,15 @@ class CliSmokeTests(unittest.TestCase):
         self.assertEqual(args.legate_command, "report")
         self.assertTrue(args.data)
         self.assertEqual(args.dataset, "demo-dataset")
+        self.assertFalse(args.notes_prompt)
 
     def test_data_report_schema_shape(self) -> None:
         schema = data_report_schema()
         self.assertEqual(schema["type"], "object")
         self.assertIn("plain_summary", schema["properties"])
         self.assertIn("data_report", schema["properties"])
+        structure = schema["properties"]["data_report"]["properties"]["structure"]
+        self.assertIn("image", structure["required"])
 
     def test_model_validate_parser(self) -> None:
         parser = build_parser()
@@ -124,6 +129,51 @@ class CliSmokeTests(unittest.TestCase):
         self.assertEqual(args.report, "report.json")
         self.assertEqual(args.intent_task, "binary_classification")
         self.assertTrue(args.create)
+
+    def test_notes_prompt_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["legate", "report", "--data", "--dataset", "demo", "--notes-prompt"])
+        self.assertTrue(args.notes_prompt)
+
+    def test_resolve_notes_defaults_empty_without_prompt(self) -> None:
+        args = build_parser().parse_args(["legate", "report", "--data", "--dataset", "demo"])
+        self.assertEqual(resolve_notes(args), "")
+
+    def test_discover_report_candidates_filters_completed_data_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            report_root = root / "outputs" / "reports" / "legate"
+            report_root.mkdir(parents=True, exist_ok=True)
+
+            write_json(
+                report_root / "20260101T000000Z_old.json",
+                {
+                    "generated_at": "2026-01-01T00:00:00Z",
+                    "delegate_kind": "report",
+                    "report_kind": "data",
+                    "report": {"dataset_name": "old-dataset"},
+                },
+            )
+            write_json(report_root / "ignore.raw.json", {"plain_summary": "not a wrapped artifact"})
+            write_json(
+                report_root / "20260102T000000Z_new.json",
+                {
+                    "generated_at": "2026-01-02T00:00:00Z",
+                    "delegate_kind": "report",
+                    "report_kind": "data",
+                    "report": {"dataset_name": "new-dataset"},
+                },
+            )
+
+            candidates = discover_report_candidates(root)
+            self.assertEqual([candidate.dataset_name for candidate in candidates], ["new-dataset", "old-dataset"])
+
+    def test_resolve_notes_prompt_uses_multiline_mode_when_requested(self) -> None:
+        args = build_parser().parse_args(["legate", "report", "--data", "--dataset", "demo", "--notes-prompt"])
+        with mock.patch("machinator.commands.legate.can_prompt_interactively", return_value=True):
+            with mock.patch("machinator.commands.legate.prompt_multiline", return_value="operator hints") as prompt:
+                self.assertEqual(resolve_notes(args), "operator hints")
+        prompt.assert_called_once()
 
     def test_dataset_facts_and_tabular_compile(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

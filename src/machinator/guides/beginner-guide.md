@@ -86,10 +86,11 @@ Machinator stages the data into the workspace and records it in the asset regist
 macht legate report --data --dataset customer-churn
 ```
 
-This uses Codex in non-interactive mode to inspect the dataset and write a structured report. You can also add plain-English notes:
+This uses Codex in non-interactive mode to inspect the dataset and write a structured report. By default it continues without stopping for notes. You can also add plain-English notes:
 
 ```bash
 macht legate report --data --dataset customer-churn --notes "This came from a churn export. The label may be noisy."
+macht legate report --data --dataset customer-churn --notes-prompt
 ```
 
 The result is a report artifact under `outputs/reports/legate/`.
@@ -99,7 +100,7 @@ The result is a report artifact under `outputs/reports/legate/`.
 This is the preferred path:
 
 ```bash
-macht collate pipeline --create --report /absolute/path/to/report.json
+macht collate pipeline --create
 ```
 
 Machinator will:
