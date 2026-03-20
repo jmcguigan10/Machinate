@@ -96,6 +96,70 @@ class DatasetFirstFlowTests(unittest.TestCase):
             run_artifacts = sorted((pipeline_root / "outputs" / "runs").glob("*.json"))
             self.assertTrue(run_artifacts)
 
+    def test_collate_create_reuses_existing_scaffold_with_force(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            workspace = root / "workspace"
+            dataset_dir = workspace / "data" / "staged" / "demo"
+            dataset_dir.mkdir(parents=True, exist_ok=True)
+            dataset_path = dataset_dir / "demo.csv"
+            dataset_path.write_text("feature_a,feature_b,label\n1.0,0.5,0\n2.0,1.5,1\n")
+
+            report_dir = workspace / "outputs" / "reports" / "legate"
+            report_dir.mkdir(parents=True, exist_ok=True)
+            report_path = report_dir / "report.json"
+            report_path.write_text(
+                json.dumps(
+                    {
+                        "generated_at": "2026-03-20T12:00:00Z",
+                        "delegate_kind": "report",
+                        "report_kind": "data",
+                        "report": {
+                            "dataset_name": "demo-dataset",
+                            "dataset_path": str(dataset_path),
+                            "suspected_problem_type": "binary classification",
+                            "structure": {
+                                "row_count_estimate": 2,
+                                "target_candidates": ["label"],
+                                "id_candidates": [],
+                                "time_candidates": [],
+                                "columns": [
+                                    {"name": "feature_a", "role_guess": "feature"},
+                                    {"name": "feature_b", "role_guess": "feature"},
+                                    {"name": "label", "role_guess": "target"},
+                                ],
+                            },
+                        },
+                    },
+                    indent=2,
+                )
+                + "\n"
+            )
+
+            self.assertEqual(main(["workspace", "init", "--path", str(workspace), "--name", "demo-workspace"]), 0)
+            self.assertEqual(
+                main(["collate", "pipeline", "--workspace", str(workspace), "--create", "--name", "demo-pipeline"]),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "collate",
+                        "pipeline",
+                        "--workspace",
+                        str(workspace),
+                        "--create",
+                        "--name",
+                        "demo-pipeline",
+                        "--force",
+                    ]
+                ),
+                0,
+            )
+
+            pipeline_root = workspace / "pipelines" / "demo-pipeline"
+            self.assertTrue((pipeline_root / "machinate.toml").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

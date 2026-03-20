@@ -7,16 +7,15 @@ from typing import Any
 
 from machinator.commands.task import resolve_selected_pipeline
 from machinator.commands.new import (
-    PIPELINE_TEMPLATES,
-    PIPELINE_TYPES,
     RECIPE_BEGIN,
     RECIPE_END,
+    STARTER_TASKS,
     create_pipeline_scaffold,
-    selected_tasks,
 )
 from machinator.core import (
     clean_optional,
     load_json,
+    load_workspace_pipeline_manifest,
     load_pipeline_config,
     now_utc,
     require_workspace_root,
@@ -38,7 +37,7 @@ from machinator.ui import MenuChoice, can_prompt_interactively, prompt_select, p
 
 COLLATION_BEGIN = "# BEGIN MACHINATE COLLATION"
 COLLATION_END = "# END MACHINATE COLLATION"
-INTENT_TASK_CHOICES = [MenuChoice("binary classification", "binary_classification")]
+REPORT_DRIVEN_TEMPLATE = "native-python"
 
 
 @dataclass(frozen=True)
@@ -67,9 +66,6 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     pipeline_parser.add_argument("--report")
     pipeline_parser.add_argument("--create", action="store_true", help="Create the pipeline scaffold from the report first")
     pipeline_parser.add_argument("--name", help="Pipeline name to use when creating a new pipeline")
-    pipeline_parser.add_argument("--type", help="Pipeline type to use when creating a new pipeline")
-    pipeline_parser.add_argument("--template", help="Template to use when creating a new pipeline")
-    pipeline_parser.add_argument("--task", action="append", default=[], help="Starter task to include when creating")
     pipeline_parser.add_argument("--intent-task")
     pipeline_parser.add_argument("--recipe")
     pipeline_parser.add_argument("--force", action="store_true")
@@ -176,12 +172,6 @@ def resolve_intent_task(args: argparse.Namespace, problem_type: str) -> str:
         return explicit
 
     inferred = infer_intent_task(problem_type)
-    if can_prompt_interactively():
-        return prompt_select(
-            "Select the intended training task",
-            INTENT_TASK_CHOICES,
-            default=inferred or "binary_classification",
-        )
     if inferred is None:
         raise SystemExit("could not infer a supported intent task; pass --intent-task")
     return inferred
@@ -208,12 +198,9 @@ def resolve_recipe(args: argparse.Namespace, *, modality: str, intent_task: str)
     recipes = candidate_recipes(modality=modality, intent_task=intent_task)
     if not recipes:
         raise SystemExit(f"no supported recipes for modality `{modality}` and intent `{intent_task}`")
-    if can_prompt_interactively():
-        return prompt_select(
-            "Select a pipeline recipe",
-            recipes,
-            default=recipes[0].value,
-        )
+    # The dataset-first path is intentionally recipe-centric and deterministic for
+    # now. We choose the first supported starter recipe for the inferred facts
+    # instead of asking legacy scaffolding questions during creation.
     return recipes[0].value
 
 
@@ -237,29 +224,7 @@ def resolve_pipeline_creation_name(args: argparse.Namespace, dataset_name: str) 
     explicit = clean_optional(args.name) or clean_optional(args.pipeline)
     if explicit is not None:
         return explicit
-    default_name = f"{slugify(dataset_name, fallback='dataset')}-pipeline"
-    if can_prompt_interactively():
-        return prompt_text("Pipeline name", default=default_name)
-    return default_name
-
-
-def resolve_pipeline_creation_type(args: argparse.Namespace, modality: str) -> str:
-    explicit = clean_optional(args.type)
-    default_type = default_pipeline_type_for_modality(modality)
-    if explicit is not None:
-        return explicit
-    if can_prompt_interactively():
-        return prompt_select("Pipeline type", PIPELINE_TYPES, default=default_type)
-    return default_type
-
-
-def resolve_pipeline_creation_template(args: argparse.Namespace) -> str:
-    explicit = clean_optional(args.template)
-    if explicit is not None:
-        return explicit
-    if can_prompt_interactively():
-        return prompt_select("Pipeline template", PIPELINE_TEMPLATES, default="native-python")
-    return "native-python"
+    return f"{slugify(dataset_name, fallback='dataset')}-pipeline"
 
 
 def resolve_or_create_pipeline(args: argparse.Namespace, *, dataset_name: str, modality: str) -> tuple[Path, Path | None]:
@@ -268,18 +233,25 @@ def resolve_or_create_pipeline(args: argparse.Namespace, *, dataset_name: str, m
 
     workspace_root = require_workspace_root(args.workspace)
     pipeline_name = resolve_pipeline_creation_name(args, dataset_name)
-    pipeline_type = resolve_pipeline_creation_type(args, modality)
-    template = resolve_pipeline_creation_template(args)
-    tasks = selected_tasks(args.task)
-    repo_path = Path(args.pipeline_path).expanduser().resolve() if clean_optional(args.pipeline_path) else None
+    pipeline_slug = slugify(pipeline_name, fallback="pipeline")
+    default_repo_path = workspace_paths(workspace_root).pipeline_root / pipeline_slug
+
+    # Re-running report-driven collation against an existing scaffold should use
+    # that scaffold rather than failing on the default workspace path.
+    manifest_path = workspace_paths(workspace_root).pipeline_registry_root / f"{pipeline_slug}.json"
+    if manifest_path.exists():
+        manifest = load_workspace_pipeline_manifest(workspace_root, pipeline_slug)
+        return Path(str(manifest["repo_path"])).expanduser().resolve(), workspace_root
+    if (default_repo_path / "machinate.toml").exists():
+        return default_repo_path.resolve(), workspace_root
 
     scaffold = create_pipeline_scaffold(
         workspace_root=workspace_root,
         pipeline_name=pipeline_name,
-        pipeline_type=pipeline_type,
-        template=template,
-        repo_path=repo_path,
-        tasks=tasks,
+        pipeline_type=default_pipeline_type_for_modality(modality),
+        template=REPORT_DRIVEN_TEMPLATE,
+        repo_path=default_repo_path,
+        tasks=list(STARTER_TASKS),
     )
     return Path(scaffold["repo_path"]), workspace_root
 

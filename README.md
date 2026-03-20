@@ -112,7 +112,7 @@ macht model compile
 macht run train --experiment baseline --dataset /path/to/data.csv
 ```
 
-`macht collate pipeline --create` is now the preferred dataset-first path. If `--report` is omitted, Machinator uses the latest compatible delegated data report from the active workspace and prompts only when multiple candidates exist. It can create the pipeline scaffold directly from the delegated report, prompt for missing intent in interactive mode, select a recipe, write `dataset_facts.toml`, `model.toml`, and `training.toml`, and append the selected recipe metadata back into `machinate.toml`.
+`macht collate pipeline --create` is now the preferred dataset-first path. If `--report` is omitted, Machinator uses the latest compatible delegated data report from the active workspace and prompts only when multiple candidates exist. The report-driven create path now derives the scaffold directly from the report facts: pipeline type comes from modality, the starter recipe defaults from the inferred task/modality, the template is the native Python scaffold, and the standard starter tasks are included automatically.
 
 `macht new pipeline` still exists, but it is now the manual/advanced escape hatch when you intentionally want to scaffold a pipeline before report-driven collation.
 

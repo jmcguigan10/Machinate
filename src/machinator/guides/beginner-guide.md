@@ -107,8 +107,8 @@ Machinator will:
 
 - read the delegated report
 - infer dataset facts
-- prompt for missing task intent when needed
-- choose a recipe
+- infer the starter task intent when it can
+- choose the default starter recipe for the reported modality
 - create the pipeline scaffold
 - write:
   - `dataset_facts.toml`
@@ -174,12 +174,12 @@ Interactive mode is best when you are exploring:
 - `macht collate pipeline`
 - `macht run`
 
-Scripted mode is best when you know the exact values:
+Scripted mode is best when you want to pin the exact values:
 
 ```bash
 macht collate pipeline \
-  --pipeline-path /abs/path/to/pipeline \
   --report /abs/path/to/report.json \
+  --name customer-churn-pipeline \
   --intent-task binary_classification \
   --recipe tabular.binary.basic
 ```
