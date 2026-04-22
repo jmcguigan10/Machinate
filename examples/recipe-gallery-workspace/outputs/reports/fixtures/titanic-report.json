@@ -1,13 +1,13 @@
 {
   "report": {
     "dataset_name": "titanic",
-    "dataset_path": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/titanic/titanic.csv",
+    "dataset_path": "../../../data/staged/titanic/titanic.csv",
     "suspected_domain": "tabular binary classification",
     "suspected_problem_type": "binary classification",
     "structure": {
       "format": "csv",
       "file_count": 1,
-      "primary_file": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/titanic/titanic.csv",
+      "primary_file": "../../../data/staged/titanic/titanic.csv",
       "row_count_estimate": 891,
       "column_count": 15,
       "columns": [

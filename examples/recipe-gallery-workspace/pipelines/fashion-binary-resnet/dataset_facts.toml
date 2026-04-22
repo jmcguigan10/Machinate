@@ -1,6 +1,6 @@
 [dataset]
 name = "fashion-top-vs-trouser"
-path = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/fashion-top-vs-trouser"
+path = "../../data/staged/fashion-top-vs-trouser"
 modality = "vision"
 suspected_problem_type = "binary classification"
 row_count_estimate = 16
@@ -15,7 +15,7 @@ id_candidates = []
 time_candidates = []
 
 [source]
-report_path = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/outputs/reports/fixtures/fashion-report.json"
+report_path = "../../outputs/reports/fixtures/fashion-report.json"
 
 [vision]
 channels = 1

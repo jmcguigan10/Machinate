@@ -57,7 +57,7 @@ requires_experiment = true
 # BEGIN MACHINATE COLLATION
 [collation]
 generated_at = "2026-03-20T12:33:47Z"
-source_report = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/outputs/reports/fixtures/sms-spam-report.json"
+source_report = "../../outputs/reports/fixtures/sms-spam-report.json"
 source_dataset = "sms-spam"
 intent_task = "binary_classification"
 recipe = "text.binary.transformer"

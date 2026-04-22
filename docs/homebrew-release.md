@@ -23,33 +23,40 @@ Machinator should be released from this repo, while the actual Homebrew tap live
 ```bash
 brew tap jmcguigan10/tap
 brew reinstall machinator
-macht --help
+machinator --help
 ```
 
 ## Local Preflight Before Publishing
 
 Before you push a release to GitHub, you can smoke-test the Homebrew packaging locally:
 
-1. Build a source tarball from the app repo:
+1. From the app repo root, build a source tarball and refresh the formula tracked in this repo:
 
 ```bash
-cd /Users/johnny/Projects/Machinator
 ./scripts/build_release_artifact.sh
 ./scripts/render_homebrew_formula.py --owner jmcguigan10
 ```
 
-2. Render the tap formula from the current artifact checksum.
+2. If you also want to write directly into a separate tap checkout, pass the tap path explicitly:
+
+```bash
+TAP_REPO="$HOME/Projects/homebrew-tap"
+./scripts/render_homebrew_formula.py \
+  --owner jmcguigan10 \
+  --tap-formula "$TAP_REPO/Formula/machinator.rb"
+```
+
 3. Register the local tap and install from it:
 
 ```bash
-brew tap jmcguigan10/tap /Users/johnny/Projects/homebrew-tap
+brew tap jmcguigan10/tap "$TAP_REPO"
 brew install jmcguigan10/tap/machinator
 ```
 
 4. Verify:
 
 ```bash
-$(brew --prefix)/bin/macht --help
+$(brew --prefix)/bin/machinator --help
 ```
 
 The formula renderer writes a GitHub release asset URL in this shape:

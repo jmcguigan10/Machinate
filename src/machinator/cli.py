@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
+import sys
 
 from machinator import __version__
 from machinator.commands import build, check, collate, doctor, grab, guide, init, legate, model, new, run, task, test, workspace
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="macht",
+        prog=prog or Path(sys.argv[0]).name or "machinator",
         description="Machinator: prompt-first control-plane CLI for ML workspaces and pipelines",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -31,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    parser = build_parser(prog=prog)
     args = parser.parse_args(argv)
     return args.func(args)

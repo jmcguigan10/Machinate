@@ -51,7 +51,7 @@ def formula_text(*, owner: str, app_repo: str, version: str, sha256: str) -> str
   end
 
   test do
-    assert_match "Machinator", shell_output("#{{bin}}/macht --help")
+    assert_match "Machinator", shell_output("#{{bin}}/machinator --help")
   end
 end
 """
@@ -63,8 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--app-repo", default=DEFAULT_APP_REPO, help="GitHub app repository name")
     parser.add_argument(
         "--tap-formula",
-        default=str(Path("/Users/johnny/Projects/homebrew-tap/Formula/machinator.rb")),
-        help="Path to the tap formula file to write",
+        help="Optional path to a tap formula file to write in addition to the repo copy",
     )
     args = parser.parse_args(argv)
 
@@ -80,18 +79,17 @@ def main(argv: list[str] | None = None) -> int:
 
     app_formula_path = root / "packaging" / "homebrew" / "machinator.rb"
     app_formula_path.write_text(rendered)
-
-    tap_formula_path = Path(args.tap_formula).expanduser().resolve()
-    tap_formula_path.parent.mkdir(parents=True, exist_ok=True)
-    tap_formula_path.write_text(rendered)
-
     print(f"version: {version}")
     print(f"sha256: {sha256}")
     print(f"wrote: {app_formula_path}")
-    print(f"wrote: {tap_formula_path}")
+
+    if args.tap_formula:
+        tap_formula_path = Path(args.tap_formula).expanduser().resolve()
+        tap_formula_path.parent.mkdir(parents=True, exist_ok=True)
+        tap_formula_path.write_text(rendered)
+        print(f"wrote: {tap_formula_path}")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -1,13 +1,13 @@
 {
   "report": {
     "dataset_name": "fashion-top-vs-trouser",
-    "dataset_path": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/fashion-top-vs-trouser",
+    "dataset_path": "../../../data/staged/fashion-top-vs-trouser",
     "suspected_domain": "vision image classification",
     "suspected_problem_type": "binary classification",
     "structure": {
       "format": "image_folder",
       "file_count": 16,
-      "primary_file": "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/fashion-top-vs-trouser",
+      "primary_file": "../../../data/staged/fashion-top-vs-trouser",
       "row_count_estimate": 16,
       "column_count": 2,
       "columns": [

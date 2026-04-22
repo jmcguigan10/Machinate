@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from machinator.core import clean_optional, load_json, slugify
+from machinator.core import clean_optional, load_json, resolve_stored_path, slugify
 from machinator.modeling_types import ArchitectureSpec, DatasetFacts, ModelSpecError, TrainingSpec
 
 # This module is the dataset-first planner. It turns delegated report facts into
@@ -356,7 +356,7 @@ def dataset_facts_from_report_path(report_path: Path) -> DatasetFacts:
 
     return DatasetFacts(
         dataset_name=dataset_name,
-        dataset_path=Path(dataset_path_text).expanduser().resolve(),
+        dataset_path=resolve_stored_path(dataset_path_text, base_root=report_path.parent),
         modality=modality,
         suspected_problem_type=clean_optional(str(report.get("suspected_problem_type", "")))
         or "binary classification",

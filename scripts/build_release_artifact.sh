@@ -16,19 +16,23 @@ PY
 )"
 DIST_DIR="${ROOT}/dist"
 ARTIFACT="${DIST_DIR}/machinator-${VERSION}.tar.gz"
+FILELIST="$(mktemp)"
+
+cleanup() {
+  rm -f "${FILELIST}"
+}
+
+trap cleanup EXIT
 
 mkdir -p "${DIST_DIR}"
 rm -f "${ARTIFACT}"
 
+git -C "${ROOT}" ls-files > "${FILELIST}"
+
 tar \
-  --exclude='.git' \
-  --exclude='.venv' \
-  --exclude='dist' \
-  --exclude='__pycache__' \
   -czf "${ARTIFACT}" \
   -C "${ROOT}" \
-  .
+  -T "${FILELIST}"
 
 echo "artifact: ${ARTIFACT}"
 shasum -a 256 "${ARTIFACT}"
-

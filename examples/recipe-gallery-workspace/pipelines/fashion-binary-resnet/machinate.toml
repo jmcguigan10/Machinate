@@ -57,7 +57,7 @@ requires_experiment = true
 # BEGIN MACHINATE COLLATION
 [collation]
 generated_at = "2026-03-20T12:33:48Z"
-source_report = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/outputs/reports/fixtures/fashion-report.json"
+source_report = "../../outputs/reports/fixtures/fashion-report.json"
 source_dataset = "fashion-top-vs-trouser"
 intent_task = "binary_classification"
 recipe = "vision.binary.resnet"

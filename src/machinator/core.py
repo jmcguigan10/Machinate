@@ -137,6 +137,15 @@ def load_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text())
 
 
+def resolve_stored_path(value: str | Path, *, base_root: Path | None = None) -> Path:
+    path = Path(str(value)).expanduser()
+    if path.is_absolute():
+        return path.resolve()
+    if base_root is not None:
+        return (base_root / path).resolve()
+    return path.resolve()
+
+
 def load_toml(path: Path) -> dict[str, Any]:
     with path.open("rb") as handle:
         return tomllib.load(handle)
@@ -465,7 +474,7 @@ def resolve_pipeline_root(
         if workspace_root is None:
             workspace_root = require_workspace_root()
         manifest = load_workspace_pipeline_manifest(workspace_root, pipeline_name)
-        return require_pipeline_root(str(manifest["repo_path"])), workspace_root
+        return require_pipeline_root(str(resolve_stored_path(str(manifest["repo_path"]), base_root=workspace_root))), workspace_root
 
     raise SystemExit("no pipeline selected; run inside a pipeline repo or pass --pipeline/--pipeline-path")
 
@@ -540,7 +549,7 @@ def resolve_dataset_path(workspace_root: Path | None, dataset_ref: str | None) -
             asset_manifest = workspace_paths(workspace_root).asset_registry_root / f"{slugify(cleaned)}.json"
             if asset_manifest.exists():
                 manifest = load_json(asset_manifest)
-                return cleaned, Path(str(manifest["local_stored_path"]))
+                return cleaned, resolve_stored_path(str(manifest["local_stored_path"]), base_root=workspace_root)
         raise SystemExit(f"unknown dataset reference `{cleaned}`")
 
     return None, None

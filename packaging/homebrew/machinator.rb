@@ -4,7 +4,7 @@ class Machinator < Formula
   desc "Prompt-first control-plane CLI for ML workspaces and pipelines"
   homepage "https://github.com/jmcguigan10/Machinator"
   url "https://github.com/jmcguigan10/Machinator/releases/download/v0.7.0/machinator-0.7.0.tar.gz"
-  sha256 "bfee9a9185917a5882e3916a81fd3cab7894d54dbcc17f3f841085bd6c52f059"
+  sha256 "e6c409173664bf290717b1a24c71a8e560407fa122807374a1975440d0e22505"
   license "MIT"
 
   depends_on "python@3.12"
@@ -14,6 +14,6 @@ class Machinator < Formula
   end
 
   test do
-    assert_match "Machinator", shell_output("#{bin}/macht --help")
+    assert_match "Machinator", shell_output("#{bin}/machinator --help")
   end
 end

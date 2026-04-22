@@ -1,6 +1,6 @@
 [dataset]
 name = "penguins-sex"
-path = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/data/staged/penguins/penguins_binary.csv"
+path = "../../data/staged/penguins/penguins_binary.csv"
 modality = "tabular"
 suspected_problem_type = "binary classification"
 row_count_estimate = 333
@@ -15,4 +15,4 @@ id_candidates = []
 time_candidates = []
 
 [source]
-report_path = "/Users/johnny/Projects/Machinator/examples/recipe-gallery-workspace/outputs/reports/fixtures/penguins-report.json"
+report_path = "../../outputs/reports/fixtures/penguins-report.json"

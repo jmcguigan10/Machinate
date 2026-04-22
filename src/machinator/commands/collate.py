@@ -19,6 +19,7 @@ from machinator.core import (
     load_pipeline_config,
     now_utc,
     require_workspace_root,
+    resolve_stored_path,
     slugify,
     workspace_paths,
 )
@@ -241,7 +242,7 @@ def resolve_or_create_pipeline(args: argparse.Namespace, *, dataset_name: str, m
     manifest_path = workspace_paths(workspace_root).pipeline_registry_root / f"{pipeline_slug}.json"
     if manifest_path.exists():
         manifest = load_workspace_pipeline_manifest(workspace_root, pipeline_slug)
-        return Path(str(manifest["repo_path"])).expanduser().resolve(), workspace_root
+        return resolve_stored_path(str(manifest["repo_path"]), base_root=workspace_root), workspace_root
     if (default_repo_path / "machinate.toml").exists():
         return default_repo_path.resolve(), workspace_root
 

@@ -8,7 +8,7 @@ from unittest import mock
 from machinator.cli import build_parser
 from machinator.commands.collate import discover_report_candidates
 from machinator.commands.legate import data_report_schema, resolve_notes
-from machinator.core import is_url, slugify, write_json
+from machinator.core import ensure_workspace_layout, is_url, resolve_pipeline_root, slugify, write_json
 from machinator.modeling import (
     DatasetFacts,
     architecture_spec_from_dataset_facts,
@@ -182,6 +182,34 @@ class CliSmokeTests(unittest.TestCase):
             candidates = discover_report_candidates(root)
             self.assertEqual([candidate.dataset_name for candidate in candidates], ["new-dataset", "old-dataset"])
 
+    def test_resolve_pipeline_root_accepts_workspace_relative_manifest_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            workspace_root = Path(tempdir) / "workspace"
+            ensure_workspace_layout(workspace_root, "demo-workspace")
+
+            pipeline_root = workspace_root / "pipelines" / "demo-pipeline"
+            pipeline_root.mkdir(parents=True, exist_ok=True)
+            (pipeline_root / "machinate.toml").write_text("[pipeline]\nname = \"demo-pipeline\"\n")
+
+            write_json(
+                workspace_root / ".machinator" / "pipelines" / "demo-pipeline.json",
+                {
+                    "pipeline_name": "demo-pipeline",
+                    "pipeline_slug": "demo-pipeline",
+                    "repo_path": "pipelines/demo-pipeline",
+                    "pipeline_config_path": "pipelines/demo-pipeline/machinate.toml",
+                },
+            )
+
+            resolved_pipeline, resolved_workspace = resolve_pipeline_root(
+                workspace_root=workspace_root,
+                pipeline_name="demo-pipeline",
+                pipeline_path=None,
+            )
+            self.assertEqual(resolved_pipeline, pipeline_root.resolve())
+            self.assertIsNotNone(resolved_workspace)
+            self.assertEqual(resolved_workspace.resolve(), workspace_root.resolve())
+
     def test_resolve_notes_prompt_uses_multiline_mode_when_requested(self) -> None:
         args = build_parser().parse_args(["legate", "report", "--data", "--dataset", "demo", "--notes-prompt"])
         with mock.patch("machinator.commands.legate.can_prompt_interactively", return_value=True):
@@ -230,6 +258,41 @@ class CliSmokeTests(unittest.TestCase):
             self.assertTrue(Path(artifacts["module_path"]).exists())
             self.assertTrue(Path(artifacts["manifest_path"]).exists())
             self.assertTrue(Path(artifacts["param_store_manifest_path"]).exists())
+
+    def test_dataset_facts_resolve_relative_dataset_path_from_report_location(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            dataset_dir = root / "data"
+            dataset_dir.mkdir(parents=True, exist_ok=True)
+            dataset_path = dataset_dir / "demo.csv"
+            dataset_path.write_text("feature_a,label\n1,0\n")
+
+            report_dir = root / "reports"
+            report_dir.mkdir(parents=True, exist_ok=True)
+            report_path = report_dir / "report.json"
+            write_json(
+                report_path,
+                {
+                    "report": {
+                        "dataset_name": "demo-dataset",
+                        "dataset_path": "../data/demo.csv",
+                        "suspected_problem_type": "binary classification",
+                        "structure": {
+                            "row_count_estimate": 1,
+                            "target_candidates": ["label"],
+                            "id_candidates": [],
+                            "time_candidates": [],
+                            "columns": [
+                                {"name": "feature_a", "role_guess": "feature"},
+                                {"name": "label", "role_guess": "target"},
+                            ],
+                        },
+                    }
+                },
+            )
+
+            facts = dataset_facts_from_report_path(report_path)
+            self.assertEqual(facts.dataset_path, dataset_path.resolve())
 
     def test_transformer_recipe_compile(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
